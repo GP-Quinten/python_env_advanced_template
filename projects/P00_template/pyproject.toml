@@ -6,7 +6,6 @@ authors = ["Gaëtan Pinon <g.pinon@quinten-health.com>"]
 readme = "README.md"
 packages = [
     { include = "p00_template", from = "src" },
-    { include = "scripts", from = "src" }
 ]
 
 [[tool.poetry.source]]
@@ -19,7 +18,7 @@ python = "^3.11"
 root-project-template = {path = "../..", develop = true}
 ipykernel = "^6.29.5"
 scikit-learn = "^1.6.1"
-# plotly = "^6.3.0"
+plotly = "^6.3.0"
 llm-backends = { version = "0.7.0", source = "pypi_product" }
 
 

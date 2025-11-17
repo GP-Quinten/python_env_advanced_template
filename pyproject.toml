@@ -16,8 +16,9 @@ url = "https://pypi.quinten.cloud/repository/pypi_product/simple/"
 priority = "supplemental"
 
 [tool.poetry.dependencies]
-python = ">=3.11,<3.14"
+python = "^3.11"
 pandas = "^2.2.3"
+ipykernel = "^6.29.5"
 
 [build-system]
 requires = ["poetry-core"]
