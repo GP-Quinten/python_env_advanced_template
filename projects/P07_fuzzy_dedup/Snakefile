@@ -1,0 +1,314 @@
+# clean_dataset.json columns:
+# - pair_hash_id: unique hash for each (left_object_id, right_object_id) pair
+# - label: integer label (0/1) for match/non-match
+# - left_name: registry name (main object)
+# - left_acronym: acronym extracted from left full name
+# - right_name: alias name (candidate match)
+# - right_acronym: acronym extracted from right full name
+# - left_object_id: object ID for main registry
+# - right_object_id: object ID for alias registry
+
+rule R10_clean_raw_dataset:
+    input:
+        script="src/scripts/S10_clean_raw_dataset.py",
+        raw_json="../../datasets/008_raw_registry_names_data_for_model_dedup/raw_registries_data/raw_registries.json",
+        preloaded_embeddings="data/R01_preload_embeddings__annotated_ds/embeddings.parquet",
+        preloaded_medc="data/R01_preload_medical_conditions__annotated_ds/medc.parquet"
+        # preloaded_geoarea="data/R01_preload_geographical_areas__annotated_ds/geo_area.parquet"
+    params:
+        output_dir="data/R10_clean_raw_dataset"
+    output:
+        clean_json="data/R10_clean_raw_dataset/clean_dataset.json"
+    shell:
+        # --preloaded_geoarea {input.preloaded_geoarea}  --- ADD later ---
+        r"""
+        python {input.script} \
+          --raw_json {input.raw_json} \
+          --output_dir {params.output_dir} \
+          --preloaded_embeddings {input.preloaded_embeddings} \
+          --preloaded_medc {input.preloaded_medc}
+        """
+
+
+
+# SIMPLE EXPLANATION OF DATASET PREPARATION PROCESS:
+#
+# This rule prepares a labeled pairs dataset by splitting it into train and test sets.
+#
+# In simple terms:
+# 1. Takes a JSON file containing labeled pairs (left_name, right_name, label)
+# 2. Splits the data into training and testing sets while preserving class distribution
+# 3. Saves the split datasets as JSON files and also stores the indices used for splitting
+# 4. This ensures reproducible train/test splits for model development and evaluation
+rule R10_prepare_dataset:
+    input:
+        script="src/scripts/S10_prepare_dataset.py",
+        dataset_json="data/R10_clean_raw_dataset/clean_dataset.json"
+    params:
+        output_dir="data/R10_prepare_dataset",
+        test_size=0.2,
+        random_state=42
+    output:
+        train_data="data/R10_prepare_dataset/train_data.json",
+        test_data="data/R10_prepare_dataset/test_data.json",
+        train_indices="data/R10_prepare_dataset/train_indices.npy",
+        test_indices="data/R10_prepare_dataset/test_indices.npy",
+        metadata="data/R10_prepare_dataset/metadata.json"
+    shell:
+        r"""
+        python {input.script} \
+          --dataset_json {input.dataset_json} \
+          --test_size {params.test_size} \
+          --random_state {params.random_state} \
+          --output_dir {params.output_dir}
+        """
+
+
+# SIMPLE EXPLANATION OF FEATURE PREPARATION PROCESS:
+#
+# This rule generates features for registry name pairs from pre-split train and test datasets.
+#
+# In simple terms:
+# 1. Takes the train and test JSON files containing labeled pairs
+# 2. Extracts features like string similarity metrics and other comparisons
+# 3. Saves the feature arrays, feature names, and a reusable feature pipeline
+# 4. Creates diagnostic plots and CSVs to understand feature distributions
+# 5. Provides consistent features for model training and evaluation
+rule R11_prepare_features:
+    input:
+        script="src/scripts/S11_prepare_features.py",
+        train_json="data/R10_prepare_dataset/train_data.json",
+        test_json="data/R10_prepare_dataset/test_data.json",
+    params:
+        output_dir="data/R11_prepare_features",        
+    output:
+        x_train="data/R11_prepare_features/X_train.npy",
+        x_test="data/R11_prepare_features/X_test.npy",
+        y_train="data/R11_prepare_features/y_train.npy",
+        y_test="data/R11_prepare_features/y_test.npy",
+        feat_names="data/R11_prepare_features/feature_names.json",
+        meta="data/R11_prepare_features/metadata.json",
+        pipeline="data/R11_prepare_features/feature_pipeline.pkl",
+        normalizer="data/R11_prepare_features/text_normalizer.pkl",
+        debug_train="data/R11_prepare_features/train_pairs_with_features.csv",
+        debug_test="data/R11_prepare_features/test_pairs_with_features.csv",
+        plots_dir=directory("data/R11_prepare_features/feature_distributions"),
+    shell:
+        """
+        python {input.script} \
+          --train_json {input.train_json} \
+          --test_json {input.test_json} \
+          --output_dir {params.output_dir}
+        """
+
+
+# SIMPLE EXPLANATION OF TRAINING PROCESS (USING NEW FEATURES):
+#
+# This rule trains a Gradient Boosting classifier on features from the new pipeline.
+# It runs a grid search to find the best hyperparameters and saves the model and metrics.
+#
+# In simple terms:
+# 1. Takes the feature arrays created by the R11_prepare_features rule
+# 2. Performs cross-validation to find optimal model parameters
+# 3. Trains a gradient boosting model on the full training set
+# 4. Saves the best model, parameters, and training summary
+# 5. Provides feature importance and model insights for interpretability
+rule R11_train_gbm:
+    input:
+        script="src/scripts/S08_train_gbm.py",
+        X_train="data/R11_prepare_features/X_train.npy",
+        y_train="data/R11_prepare_features/y_train.npy"
+    params:
+        features_dir="data/R11_prepare_features",
+        output_dir="data/R11_train_gbm",
+        scoring="average_precision",
+        cv=5,
+        n_jobs=-1,
+        random_state=42,
+        max_combinations=200
+    output:
+        model="data/R11_train_gbm/best_model.joblib",
+        best_params="data/R11_train_gbm/best_params.json",
+        cv_results="data/R11_train_gbm/cv_results.csv",
+        summary="data/R11_train_gbm/training_summary.json"
+    shell:
+        r"""
+        python {input.script} \
+          --features_dir {params.features_dir} \
+          --output_dir {params.output_dir} \
+          --scoring {params.scoring} \
+          --cv {params.cv} \
+          --n_jobs {params.n_jobs} \
+          --random_state {params.random_state} \
+          --grid_search \
+          --max_combinations {params.max_combinations}
+        """
+
+rule R11_train_histgbm:
+    input:
+        # script="src/scripts/S08_train_gbm.py",  # Reusing the existing training script
+        script="src/scripts/S08_train_histgbm.py",
+        X_train="data/R11_prepare_features/X_train.npy",
+        y_train="data/R11_prepare_features/y_train.npy"
+    params:
+        features_dir="data/R11_prepare_features",
+        output_dir="data/R11_train_histgbm",
+        scoring="average_precision",
+        cv=5,
+        n_jobs=-1,
+        random_state=42,
+        max_combinations=200
+    output:
+        model="data/R11_train_histgbm/best_model.joblib",
+        best_params="data/R11_train_histgbm/best_params.json",
+        cv_results="data/R11_train_histgbm/cv_results.csv",
+        summary="data/R11_train_histgbm/training_summary.json"
+    shell:
+        r"""
+        python {input.script} \
+          --features_dir {params.features_dir} \
+          --output_dir {params.output_dir} \
+          --scoring {params.scoring} \
+          --cv {params.cv} \
+          --n_jobs {params.n_jobs} \
+          --random_state {params.random_state} \
+          --grid_search \
+          --max_combinations {params.max_combinations}
+        """
+
+
+# --- Build a single inference-ready sklearn Pipeline (normalizer + features + model)
+rule R12_make_pipeline:
+    input:
+        script="src/scripts/S12_make_pipeline.py",
+        feature_union="data/R11_prepare_features/feature_pipeline.pkl",
+        trained_model="data/R11_train_histgbm/best_model.joblib",
+        normalizer="data/R11_prepare_features/text_normalizer.pkl",
+    params:
+        output_dir="data/R12_prod_pipeline",
+    output:
+        pipeline="data/R12_prod_pipeline/inference_pipeline.joblib",
+        manifest="data/R12_prod_pipeline/pipeline_manifest.json",
+    shell:
+        r"""
+        python {input.script} \
+          --feature_union {input.feature_union} \
+          --trained_model {input.trained_model} \
+          --normalizer {input.normalizer} \
+          --output_dir {params.output_dir}
+        """
+
+
+# Inference on TRAIN data (no evaluation, just predictions)
+rule R13_inference_train:
+    input:
+        script="src/scripts/S13_run_inference.py",
+        pipeline="data/R12_prod_pipeline/inference_pipeline.joblib",
+        dataset_json="data/R10_prepare_dataset/train_data.json"
+    params:
+        output_dir="data/R13_inference_train"
+    output:
+        preds="data/R13_inference_train/predictions.csv"
+    shell:
+        """
+        python {input.script} \
+          --pipeline {input.pipeline} \
+          --dataset_json {input.dataset_json} \
+          --output_dir {params.output_dir}
+        """
+
+
+# Inference on TEST data (no evaluation, just predictions)
+rule R13_inference_test:
+    input:
+        script="src/scripts/S13_run_inference.py",
+        pipeline="data/R12_prod_pipeline/inference_pipeline.joblib",
+        dataset_json="data/R10_prepare_dataset/test_data.json"
+    params:
+        output_dir="data/R13_inference_test"
+    output:
+        preds="data/R13_inference_test/predictions.csv"
+    shell:
+        """
+        python {input.script} \
+          --pipeline {input.pipeline} \
+          --dataset_json {input.dataset_json} \
+          --output_dir {params.output_dir}
+        """
+
+
+# Evaluate predictions against ground-truth labels from the original dataset
+rule R14_eval_gbm:
+    input:
+        script="src/scripts/S14_eval.py",
+        dataset_json="data/R10_prepare_dataset/test_data.json",
+        preds_csv="data/R13_inference_test/predictions.csv"
+    params:
+        output_dir="data/R14_eval_gbm",
+        optimize="none",                # "none" | "f1" | "youden"
+        target_precision=0.95,          # region shading on PR curve
+        threshold=0.5                  # fixed threshold for classification (0..1); leave empty to optimize
+    output:
+        # Core artifacts
+        metrics="data/R14_eval_gbm/metrics.json",
+        preds_joined="data/R14_eval_gbm/predictions_with_labels.csv",
+        report="data/R14_eval_gbm/report.md",
+        # Plots
+        pr_csv="data/R14_eval_gbm/pr_curve.csv",
+        roc_csv="data/R14_eval_gbm/roc_curve.csv",
+        pr_png="data/R14_eval_gbm/pr_curve.png",
+        roc_png="data/R14_eval_gbm/roc_curve.png",
+        calib_png="data/R14_eval_gbm/calibration.png",
+        hist_png="data/R14_eval_gbm/proba_hist.png",
+        pr_high_png="data/R14_eval_gbm/pr_curve_highlight.png",
+        combo_png="data/R14_eval_gbm/evaluation_plots.png",
+        # Extras
+        cls_report="data/R14_eval_gbm/classification_report.txt",
+        fn_csv="data/R14_eval_gbm/false_negatives.csv",
+        fp_csv="data/R14_eval_gbm/false_positives.csv",
+    shell:
+        r"""
+        python {input.script} \
+          --dataset_json {input.dataset_json} \
+          --predictions_csv {input.preds_csv} \
+          --output_dir {params.output_dir} \
+          --optimize {params.optimize} \
+          --target_precision {params.target_precision} \
+          --threshold {params.threshold}
+        """
+
+
+# Build clusters from model predictions using a probability threshold
+# rule R15_cluster:
+#     input:
+#         script="src/scripts/S15_cluster_from_preds.py",
+#         dataset_json="data/R10_prepare_dataset/test_data.json",
+#         preds_csv="data/R13_inference_test/predictions.csv"
+#     params:
+#         output_dir="data/R15_cluster_gbm",
+#         threshold=0.50,             # accept an edge if proba >= threshold
+#         proba_col="proba",          # column in predictions.csv with probabilities
+#         idx_i_col="idx_i",          # left index column in predictions.csv
+#         idx_j_col="idx_j",          # right index column in predictions.csv
+#         cluster_prefix="C"          # prefix for cluster IDs
+#     output:
+#         clusters="data/R15_cluster_gbm/predicted_clusters.json",  # dataset + cluster_id
+#         edges="data/R15_cluster_gbm/predicted_edges.json",        # accepted edges (i, j)
+#         summary="data/R15_cluster_gbm/summary.json"               # basic stats (n_clusters, sizes, etc.)
+#     shell:
+#         r"""
+#         python {input.script} \
+#           --dataset_json {input.dataset_json} \
+#           --predictions_csv {input.preds_csv} \
+#           --output_dir {params.output_dir} \
+#           --threshold {params.threshold} \
+#           --proba_col {params.proba_col} \
+#           --idx_i_col {params.idx_i_col} \
+#           --idx_j_col {params.idx_j_col} \
+#           --cluster_prefix {params.cluster_prefix}
+
+#         # copy explicit outputs for Snakemake tracking
+#         cp {params.output_dir}/predicted_clusters.json {output.clusters}
+#         cp {params.output_dir}/predicted_edges.json {output.edges}
+#         cp {params.output_dir}/summary.json {output.summary}
+        # """

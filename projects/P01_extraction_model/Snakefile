@@ -1,0 +1,93 @@
+# include: "workflow/W00_extraction_dataset.smk"
+# include: "workflow/W01_extraction_model.smk"
+
+# rule all:
+#     input:
+#         "data/W01_R21_parse_llm_annotation_comparison_large_vs_small_registry_name/llm_comparison_parsed_large_vs_small.jsonl",
+#         # "data/W01_R22_compare_large_vs_small_with_transformers/llm_comparison_large_vs_small.jsonl"
+#         # "data/W00_R00_sample_publication_dataset/prod_publication_dataset.jsonl",
+#         # "data/W01_R01_parse_llm_annotation_large/llm_parsed.jsonl",
+#         # "data/W01_R11_parse_llm_annotation_small/llm_parsed.jsonl",
+#         # # "data/W01_R21_parse_llm_annotation_comparison_large_vs_small/llm_comparison_parsed_large_vs_small.jsonl",
+#         # "data/W01_R30_generate_report_large_vs_small/report.txt",
+
+#         # # 
+
+        
+#         # "data/W01_R01_extraction_with_mistral_small/",
+#         # "data/W01_R02_compare_mistral_large_small/",
+
+
+rule W99_R01_all_in_one:
+    input:
+        script="src/scripts/S502_merge_into_one_dataset.py",
+        dataset="../../datasets/001_publications_dataset/publications_dataset.jsonl",
+        model_a="data/W01_R01_parse_llm_annotation_large/llm_parsed.jsonl",
+        model_b="data/W01_R11_parse_llm_annotation_small/llm_parsed.jsonl",
+        judge="data/W01_R21_parse_llm_annotation_comparison_large_vs_small_registry_name/llm_comparison_parsed_large_vs_small.jsonl"
+    output:
+        directory("data/W99_R01_all_in_one/")
+    shell:
+        """
+        python {input.script} \
+            --dataset_jsonl {input.dataset} \
+            --model_a_jsonl {input.model_a} \
+            --model_b_jsonl {input.model_b} \
+            --llm_judge_jsonl {input.judge} \
+            --output_dir {output}
+        """
+
+rule W99_R02_annotation_dataset:
+    input:
+        script="src/scripts/S503_make_annotation_dataset.py",
+        dataset="data/W99_R01_all_in_one/all_in_one_dataset.json"
+    output:
+        directory("data/W99_R02_annotation_dataset/")
+    shell:
+        """
+        python {input.script} \
+            --all_in_one_dataset_json {input.dataset} \
+            --output_dir {output}
+        """
+
+
+rule W99_R03_registry_name_dataset:
+    input:
+        script="src/scripts/S504_make_registry_name_dataset.py",
+        all_in_one_dataset="data/W99_R01_all_in_one/all_in_one_dataset.json",
+        corrected_registry_names="../../datasets/002_registry_names_dataset/manual_annotation/01_annotated_ghinwa_incorrect_registry_name.json"
+    output:
+        directory("data/W99_R03_registry_name_dataset/")
+    shell:
+        """
+        python {input.script} \
+            --all_in_one_dataset_json {input.all_in_one_dataset} \
+            --corrected_registry_names_json {input.corrected_registry_names} \
+            --output_dir {output}
+        """
+
+
+# @click.command()
+# @click.option('--all_in_one_dataset_json', type=click.Path(exists=True), required=True,
+#               help='Path to the all-in-one dataset JSON file.')
+# @click.option('--registry_names_dataset_json', type=click.Path(exists=True), required=True,
+#               help='Path to the registry names dataset JSON file.')
+# @click.option('--output_dir', type=click.Path(), required=True,
+#               help='Directory to save the performance metrics.')
+# def main(all_in_one_dataset_json, registry_names_dataset_json, output_dir):
+#projects/P01_extraction_model/src/scripts/S601_measure_model_perfromance.py
+
+rule W99_R04_small_mistral_performance:
+    input:
+        script="src/scripts/S601_measure_model_perfromance.py",
+        all_in_one_dataset="data/W99_R01_all_in_one/all_in_one_dataset.json",
+        registry_names_dataset="../../datasets/002_registry_names_dataset/registry_names_dataset.json"
+    output:
+        directory("data/W99_R04_small_mistral_performance/")
+    shell:
+        """
+        python {input.script} \
+            --all_in_one_dataset_json {input.all_in_one_dataset} \
+            --registry_names_dataset_json {input.registry_names_dataset} \
+            --output_dir {output}
+        """

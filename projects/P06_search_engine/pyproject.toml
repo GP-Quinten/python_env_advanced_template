@@ -1,0 +1,28 @@
+[tool.poetry]
+name = "p06_search_engine"
+version = "0.1.0"
+description = ""
+authors = ["Jules PERRIO <j.perrio@quinten-france.com>"]
+readme = "README.md"
+packages = [
+    { include = "p06_search_engine", from = "src" },
+    { include = "scripts", from = "src" }
+]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+snakemake = "^8.29.2"
+click = "^8.1.8"
+registry-catalog-data-science = {path = "../..", develop = true}
+ipykernel = "^6.29.5"
+scipy = "^1.16.1"
+protobuf = "5.29"
+gencode = "^1.0.1"
+mlflow = "^3.2.0"
+bs4 = "^0.0.2"
+mistralai = "^1.9.7"
+plotly = "^6.3.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

@@ -1,0 +1,5 @@
+outs:
+- md5: a78de606908c5f7455be43945bc0c20c
+  size: 25034
+  hash: md5
+  path: examples_for_prompt_LLM_as_a_judge_clean.xlsx

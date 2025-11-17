@@ -1,0 +1,120 @@
+CONTEXT:
+You are an expert of real-world clinical studies, especially at litterature review. You are provided with a publication's title and abstract extracted from PubMed or Semantic Scholar, in which use or analysis of patient/medical registry was proven. 
+Register and registry are synonyms.
+
+DEFINITION:
+In a clinical study, an outcome measure (often called an endpoint) is the specific variable —or set of variables — that investigators track to determine whether the treatment or exposure being studied makes a difference. In practical terms, it answers: “What exactly will we look at, how will we quantify it, and when, to judge success or harm?”. This is to be distinguished from the medical condition, which defines the population being studied.
+
+TASK:
+Using title and abstract (defined by "Text_to_analyze") of the publication, your task is to:
+1. Classify the publication as either "Survey/Review", "Exploratory" or "Confirmatory":
+    * Survey/Review: A publication that gathers and summarizes existing knowledge, often without new data collection.
+    * Exploratory: A publication that investigates new hypotheses or relationships, often with preliminary data.
+    * Confirmatory: A publication that tests specific hypotheses with rigorous methods and data analysis.
+2. Extract the following Primary analytic concepts:
+    * If the publication is "Confirmatory", extract the endpoint (or list of endpoints) that was used to evaluate the effect of an intervention or exposure in the given clinical study. 
+    * Else if the publication is "Exploratory", extract the main focus of the study, which could be a risk factor, data-quality / process metric, or descriptive statistics.
+    * Else if the publication is "Survey/Review", extract the main focus/takeaway of the survey or review, which could be a summary of existing knowledge, trends, or recommendations.
+This extraction will be helpul for a clinical researcher to quickly understand what the study is about, and what it tries to measure or improve.
+
+ADDITIONAL INSTRUCTIONS:
+1. Use umbrella terms (+ detailed) to group close concepts.
+    * Example: 
+        - BAD: "Exploratory: Pathology reports on tumour resection, Pathology reports on lymphadenectomy, Pathology reports on sentinel lymph nodes, Treatment patterns"
+        - GOOD: "Exploratory: Data Quality Indicators QIs (Pathology reports (tumour resection, lymphadenectomy, sentinel lymp nodes)), Treatments patterns"
+    * Example 2: 
+        - BAD: Confirmatory: OS5, OS10, CSS5, CSS10, Tumor size 
+        - GOOD: Confirmatory: OS (5y, 10y), CSS (5y, 10y), Tumor size
+3. Use synthetic + acronym clinical language to make it easier for the user to read. Imagine this will be in a small box on a website.
+    * Incidende Rate -> IR
+    * Overall Survival -> OS
+    * Progression-Free Survival -> PFS  
+    * Major Adverse Cardiac Events -> MACE
+4. List up to 3 Primary analytic concepts (the most important ones). You don't need to extract 3 every time.
+    * Use umbrella terms (+ details) method to regroup key concepts as one Primary analytic concept.
+5. When possible, for each extracted primary analytic concept, indicate with nouns or adjectives if the studies looks at a static or dynamic measure, or a frequency (e.g., "Median OS", "IR evolution over 10 years", "Grade ≥3 hematologic toxicity at baseline", "Neurocognitive decline at 6 months", "Change in BMI over 2 years", "Risk of colorectal cancer recurrence within 5y").
+6. If no information is available , write only "Not found".
+
+Output format of your answer (no extra text):
+{
+    "Publication type": "<Confirmatory OR Exploratory OR Survey/Review>",
+    "Outcome measure": STRING # outcome measure(s) found
+}
+Please provide your response in valid JSON format.
+
+6 examples of answer: 
+1. EXAMPLE 1:
+    * GOOD:
+    {
+        "Publication type": "Confirmatory",
+        "Outcome measure": "Myocardial infarction, Cardiovascular death, Stroke"
+    }
+    * BAD (too generic):
+    {
+    "Publication type": "Confirmatory",
+    "Outcome measure": "Adverse events"
+    }
+
+2. EXAMPLE 2:
+    * GOOD:
+    {
+        "Publication type": "Exploratory",
+        "Outcome measure": "IR, Median OS, MGMT promoter-methylation frequency"
+    }
+    * BAD (too generic):
+    {
+        "Publication type": "Exploratory",
+        "Outcome measure": "Survival"
+    }
+
+3. EXAMPLE 3
+    {
+        "Publication type": "Exploratory",
+        "Outcome measure": "Life style factors (Smoking, Alcohol dependence, Obesity)"
+    }
+
+4. EXAMPLE 4:
+    {
+        "Publication type": "Exploratory",
+        "Outcome measure": "Not found"
+    }
+
+5. EXAMPLE 5:
+    # Next is about data quality metrics or descriptive stats on gliobastoma
+    * BAD (too many):
+    {
+        "Publication type": "Exploratory",
+        "Outcome measure": "IR, Median overall survival, MGMT promoter-methylation frequency, Extent of surgical resection, Time-to-treatment initiation"
+    }
+    * GOOD (keeping the most important ones):
+    {
+        "Publication type": "Exploratory",
+        "Outcome measure": "Median OS, MGMT promoter-methylation frequency, Time-to-treatment initiation"
+    }
+
+6. EXAMPLE 6:
+    # Next is Confirmatory on gliobastoma
+    * BAD (too many):
+    {
+        "Publication type": "Confirmatory",
+        "Outcome measure": "PFS6, OS12, ORR, Grade ≥3 hematologic toxicity, Neurocognitive decline"
+    }
+    * GOOD (use an umbrella term):
+    {
+        "Publication type": "Confirmatory",
+        "Outcome measure": "Survival (PFS6, OS12, ORR), Grade ≥3 hematologic toxicity"
+    }
+    
+7. EXAMPLE 7:
+    * BAD (too generic):
+    {
+        "Publication type": "Survey/Review",
+        "Outcome measure": "Trends in glioblastoma treatment"
+    }
+    * GOOD (more specific):
+    {
+        "Publication type": "Survey/Review",
+        "Outcome measure": "Trends in glioblastoma treatment (Surgery, Radiotherapy, Chemotherapy)"
+    }
+
+Text_to_analyze:

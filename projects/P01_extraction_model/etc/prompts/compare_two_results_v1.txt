@@ -1,0 +1,18 @@
+Compare two following JSON contents by meaning.
+Use JSON format like:
+
+{
+"Registry related": VALUE, 
+"Registry name": VALUE , 
+etc.
+}
+
+where VALUE could be:
+"same meaning" (No explanation)
+"minor difference" (No explanation)
+"different meaning" (with explanation)
+
+Content A:
+{{content_a}}
+Content B:
+{{content_b}}

@@ -1,0 +1,117 @@
+Context:
+Patient registries are structured, systematic databases that collect standardized, longitudinal, patient-level clinical data on populations defined by diseases, conditions, exposures, or treatments. They support observational research, epidemiological monitoring, clinical-outcomes evaluation, trend analyses, data-quality assessments, comparative studies, and linkage with other data sources. Administrative registries (e.g., hospital discharge, national cancer, stroke, chronic disease surveillance systems) qualify if they systematically collect patient-level data suitable for clinical or epidemiological analysis. Simple vital-statistics databases (birth/death) do NOT qualify.
+
+Definitions
+- Genuine patient registries: Systematic, standardized collection of patient-level data with enrollment and follow-up.
+- Non-qualifying sources: Vital-statistics only, simple claims, administrative birth/death registries without longitudinal clinical detail.
+
+Situation:
+The publication that is given (title and abstract concatenated as Text_to_analyze) is registry related (it was manually checked), meaning that:
+- a least one patient registry is mentioned in the text
+- the publication/study uses or analyzes data from that registry
+
+Task:
+Given the publication’s title and abstract (as Text_to_analyze), extract the registry name (or list of registries separated by commas) by following the exact JSON output format.
+
+STEPS TO FOLLOW (in order):
+
+1. Identify data sources
+   - List all sources mentioned. When a registry cannot be uniquely identified, add 'A' or 'An' before the source name to indicate it is an indefinite article.
+      * Example: "A national cancer registry" or "An administrative database"
+   - Label each as "qualifying registry" or "non-qualifying source."
+   - Confirm qualification against the definition above.
+
+2. Assess usage
+   - Determine if the study uses or analyzes a registry data (e.g., epidemiological outcomes, survival, descriptive, data-quality, comparative, linkage, registry-based clinical trials).
+   - Publications that only reference or recommend registries without data analysis do not qualify.
+
+3. Extract the list of registry names:
+   - Expected Output format of each registry name:
+     {
+         "registry_name": "<name>",
+         "acronym": "<acronym>",
+         "is_official": <True or False>
+     }
+   - List every registry name that is used in the study, following these rules:
+   - If the registry name is clearly defined and official:
+      -> put True in the "is_official" field.
+      -> Extract the official name and put it in the "registry_name" field. You can use your personal knowledge to complete the name to have it fully defined.
+      - If the acronym (or shorten name) is available or if you know it, put it in the "acronym" field. 
+         -> extract it and put it in the "acronym" field.
+         * EXAMPLE:
+            {
+               "registry_name": "Surveillance Epidemiology and End Results Program",
+               "acronym": "SEER",
+               "is_official": True
+            }
+      - Else if the acronym is not available, try to guess it or if you cannot guess it, put the best guess you can in the "acronym" field.
+         -> put an empty string in the "acronym" field.
+         * EXAMPLE:
+            {
+               "registry_name": "Vienna Bone and Soft Tissue Tumour Registry",
+               "acronym": "VBSTTR",
+               "is_official": True
+            }
+   - Else if the registry name is not clearly defined or is an informal designation:
+      -> put False in the "is_official" field.
+      -> Still extract a designation that is as accurate as possible to put in "registry_name", adding 'A' or 'An' before the name to indicate it is an indefinite data source name.
+      -> Put an empty string in the "acronym" field.
+      * EXAMPLE:
+         {
+            "registry_name": "A Regional Stroke Registry",
+            "acronym": "",
+            "is_official": False
+         }
+   - There may be multiple registries mentioned in the text. In this case, extract all of them (if they are clearly named), separated by commas and following the same rules as above.
+
+4. Final Output format
+   - Please provide your response in valid JSON format, no extra text or explanation, following this exact structure:
+      {
+         "Reflexions": {
+            "step1_reflexion": "<synthetic reasoning about sources >", # (10 words maximum)
+            "step2_reflexion": "<synthetic reasoning about data use>", # (10 words maximum)
+            "step3_reflexion": "<synthetic reasoning about official names and acronyms found>" # (10 words maximum)
+         }
+         "List of Registry names": [
+               {
+                  "registry_name": "<name1>",
+                  "acronym": "<n1>",
+                  "is_official": <True or False>
+               },
+               {
+                  "registry_name": "<name2>",
+                  "acronym": "<n2>",
+                  "is_official": <True or False>
+               }
+               # ... more registries if applicable
+               {
+                  "registry_name": "<nameN>",
+                  "acronym": "<nN>",
+                  "is_official": <True or False>
+               }
+            ]
+      }
+
+ADDITIONAL INSTRUCTIONS:
+Key Criteria for qualification for steps 1 and 2:
+- Uses patient-level registry or qualifying administrative data.
+- Performs epidemiological, survival, descriptive, data-quality, comparative, or linkage analyses.
+- Describes registry-based clinical trials.
+
+Key Criteria for disqualification for steps 1 and 2
+- Pure RCTs without registry involvement.
+- Cohorts based only on institutional records without standardized registry protocols.
+- Studies using vital-statistics only.
+- Surveys or opinion pieces without actual registry data analysis.
+- National or regional surveys that are not registries
+- Publications merely recommending registries.
+
+FINAL NOTES:
+- Try also identifying the geographical area of the patients from who the data is collected directly in the title or abstract. It may be of use to you to determine the registry name.
+- Output only valid JSON,with no extra text. Do not output 'None' or omit the response.
+- The JSON must always be returned, even if no registry is found.
+   -> In such cases, return an empty "List of Registry names" with relevant "Reflexions".
+- The "acronym" field must always be present. If unknown, use an empty string "".
+- Do not include any explanation, markdown, or formatting outside the JSON object.
+
+Text_to_analyze:

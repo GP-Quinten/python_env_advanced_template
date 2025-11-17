@@ -1,0 +1,165 @@
+rule R01_prepare_datasets:
+    input:
+        script="src/scripts/S01_prepare_datasets.py",
+        eval_dataset_parquet="../../datasets/008_raw_registry_names_data_for_model_dedup/dedup_eval_dataset/dedup_eval_dataset.parquet",
+        # eval_dataset_parquet="data/N01_extract_for_eval_dataset/eval_dataset_updated_with_random_embeddings.parquet",
+    params:
+        output_dir="data/R01_prepare_datasets",
+        test_size=0.2,
+        random_state=42,
+        metadata="data/R01_prepare_datasets/metadata.json"
+    output:
+        train_dataset_parquet="data/R01_prepare_datasets/train_dataset.parquet",
+        test_dataset_parquet="data/R01_prepare_datasets/test_dataset.parquet",
+    shell:
+        r"""
+        python {input.script} \
+          --eval_dataset_parquet {input.eval_dataset_parquet} \
+          --test_size {params.test_size} \
+          --random_state {params.random_state} \
+          --output_dir {params.output_dir}
+        """
+
+rule R02_prepare_features:
+    input:
+        script="src/scripts/S02_prepare_features.py",
+        train_parquet="data/R01_prepare_datasets/train_dataset.parquet",
+        test_parquet="data/R01_prepare_datasets/test_dataset.parquet",
+    params:
+        output_dir="data/R02_prepare_features",     
+    output:
+        # Needed in later steps
+        x_train="data/R02_prepare_features/X_train.npy",
+        x_test="data/R02_prepare_features/X_test.npy",
+        y_train="data/R02_prepare_features/y_train.npy",
+        y_test="data/R02_prepare_features/y_test.npy",
+        pipeline="data/R02_prepare_features/feature_pipeline.pkl",
+        normalizer="data/R02_prepare_features/text_normalizer.pkl",
+        feat_names="data/R02_prepare_features/feature_names.json",
+        ## Not needed in later steps
+        meta="data/R02_prepare_features/metadata.json",
+        debug_train="data/R02_prepare_features/train_pairs_with_features.csv",
+        debug_test="data/R02_prepare_features/test_pairs_with_features.csv",
+        plots_dir=directory("data/R02_prepare_features/feature_distributions"),
+    shell:
+        """
+        python {input.script} \
+          --train_parquet {input.train_parquet} \
+          --test_parquet {input.test_parquet} \
+          --output_dir {params.output_dir}
+        """
+
+rule R03_train_model:
+    input:
+        script="src/scripts/S03_train_model.py",
+        X_train="data/R02_prepare_features/X_train.npy",
+        y_train="data/R02_prepare_features/y_train.npy",
+        feature_names_json="data/R02_prepare_features/feature_names.json"
+    params:
+        features_dir="data/R02_prepare_features",  # contains X_train, y_train, feature_names_json
+        output_dir="data/R03_train_model",
+        scoring="average_precision",
+        cv_folds=5,
+        n_jobs=-1,
+        random_state=42,
+        max_search_iterations=200
+    output:
+        # Needed in later steps
+        model="data/R03_train_model/trained_model.joblib",
+        # Not needed in later steps
+        best_params="data/R03_train_model/best_hyperparameters.json",
+        cv_results="data/R03_train_model/cross_validation_results.csv",
+        metadata="data/R03_train_model/training_metadata.json",
+        feature_importance="data/R03_train_model/feature_importance_details.csv",
+        feature_plot="data/R03_train_model/feature_importance_horizontal.png"
+    shell:
+        r"""
+        python {input.script} \
+          --features_dir {params.features_dir} \
+          --output_dir {params.output_dir} \
+          --scoring {params.scoring} \
+          --cv_folds {params.cv_folds} \
+          --n_jobs {params.n_jobs} \
+          --random_state {params.random_state} \
+          --enable_hyperparameter_search \
+          --max_search_iterations {params.max_search_iterations}
+        """
+
+rule R04_make_pipeline:
+    input:
+        script="src/scripts/S04_make_pipeline.py",
+        feature_union="data/R02_prepare_features/feature_pipeline.pkl",
+        trained_model="data/R03_train_model/trained_model.joblib",
+        normalizer="data/R02_prepare_features/text_normalizer.pkl",
+    params:
+        output_dir="data/R04_prod_pipeline",
+    output:
+        # Needed in later steps
+        pipeline="data/R04_prod_pipeline/inference_pipeline.joblib",
+        # Not needed in later steps
+        manifest="data/R04_prod_pipeline/pipeline_manifest.json",
+    shell:
+        r"""
+        python {input.script} \
+          --feature_union {input.feature_union} \
+          --trained_model {input.trained_model} \
+          --normalizer {input.normalizer} \
+          --output_dir {params.output_dir}
+        """
+
+rule R05_inference_test:
+    input:
+        script="src/scripts/S05_make_inference.py",
+        pipeline="data/R04_prod_pipeline/inference_pipeline.joblib",
+        dataset_parquet="data/R01_prepare_datasets/test_dataset.parquet"
+    params:
+        output_dir="data/R05_inference_test"
+    output:
+        preds="data/R05_inference_test/predictions.csv",
+    shell:
+        """
+        python {input.script} \
+          --pipeline {input.pipeline} \
+          --dataset_parquet {input.dataset_parquet} \
+          --output_dir {params.output_dir}
+        """
+
+rule R06_eval_model:
+    input:
+        script="src/scripts/S06_eval_model.py",
+        dataset_parquet="data/R01_prepare_datasets/test_dataset.parquet",
+        preds_csv="data/R05_inference_test/predictions.csv"
+    params:
+        output_dir="data/R06_eval_model",
+        optimize="none",                # "none" | "f1" | "youden"
+        target_precision=0.95,          # region shading on PR curve
+        threshold=0.5                   # fixed threshold for classification (0..1); leave empty to optimize
+    output:
+        # Core artifacts - updated to match refactored script outputs
+        metrics="data/R06_eval_model/comprehensive_metrics.json",
+        preds_joined="data/R06_eval_model/predictions_with_labels.csv",
+        report="data/R06_eval_model/comprehensive_evaluation_report.md",
+        error_analysis="data/R06_eval_model/detailed_error_analysis.md",
+        # Plots
+        pr_csv="data/R06_eval_model/pr_curve.csv",
+        roc_csv="data/R06_eval_model/roc_curve.csv",
+        pr_png="data/R06_eval_model/pr_curve.png",
+        roc_png="data/R06_eval_model/roc_curve.png",
+        calib_png="data/R06_eval_model/calibration.png",
+        hist_png="data/R06_eval_model/proba_hist.png",
+        combo_png="data/R06_eval_model/evaluation_plots.png",
+        # Additional analysis files
+        cls_report="data/R06_eval_model/classification_report.txt",
+        fn_csv="data/R06_eval_model/false_negatives.csv",
+        fp_csv="data/R06_eval_model/false_positives.csv",
+        pr_thresholds="data/R06_eval_model/precision_recall_thresholds.json",
+    shell:
+        r"""
+        python {input.script} \
+          --dataset_parquet {input.dataset_parquet} \
+          --predictions_csv {input.preds_csv} \
+          --output_dir {params.output_dir} \
+          --optimize {params.optimize} \
+          --target_precision {params.target_precision} \
+          --threshold {params.threshold}
+        """

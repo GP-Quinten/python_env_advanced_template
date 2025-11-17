@@ -1,0 +1,5 @@
+outs:
+- md5: decd12d9b924db9699a6fe6cab7ee6bc
+  size: 240017
+  hash: md5
+  path: dedup_100_famous_european_registries_with_geo_area.json

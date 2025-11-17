@@ -1,0 +1,354 @@
+# Rule to load registry dataset from S3 and save as JSON
+rule R01_load_registry_dataset:
+    input:
+        script="src/scripts/S01_load_registry_dataset.py"
+    output:
+        "data/R01_load_registry_dataset/registry_dataset.json"
+    shell:
+        """
+        python {input.script} --output-dir data/R01_load_registry_dataset
+        """
+
+rule R02_normalize_dataset:
+    input:
+        script="src/scripts/S02_normalize_dataset.py",
+        dataset_json="data/R01_load_registry_dataset/registry_dataset.json"
+    params:
+        target_column="registry_name",
+        output_filename="normalized_registries.json"
+    output:
+        "data/R02_normalize_dataset/normalized_registries.json"
+    shell:
+        """
+        python {input.script} \
+            --dataset_json {input.dataset_json} \
+            --output_dir data/R02_normalize_dataset \
+            --target_column {params.target_column} \
+            --output_filename {params.output_filename}
+        """
+
+
+# SIMPLE EXPLANATION OF BLOCKING PROCESS:
+# 
+# This rule finds potential duplicate records using a technique called "Locality-Sensitive Hashing" (LSH).
+# 
+# In simple terms:
+# 1. We break each registry name into small pieces (n-grams)
+# 2. We create a special "fingerprint" of each name (MinHash)
+# 3. We group similar names together into "blocks" based on these fingerprints
+# 4. We generate candidate pairs by finding records that share blocks
+# 5. Later, we'll only compare these candidate pairs, saving computation time
+#
+# Think of it like sorting books by their first letter - you only need to 
+# compare books that start with the same letter to find duplicates.
+rule R03_block_dataset:
+    input:
+        script="src/scripts/S03_block_dataset.py",
+        dataset_json="data/R02_normalize_dataset/normalized_registries.json"
+    params:
+        target_column="norm__registry_name",     # Normalized column name to use for blocking
+        output_filename="blocked_registries.json", # Name of output JSON file
+        pairs_filename="candidate_pairs.json",   # Name of candidate pairs output file
+        ngram=3,      # How big the pieces of text are (3=three characters)
+        num_perm=128, # Size of the fingerprint (bigger = more accurate but slower)
+        bands=32,     # How many groups to split the fingerprint into (controls sensitivity)
+        seed=13,      # Makes results consistent each time we run the script
+        min_block_size=2,  # Minimum block size to consider (avoids noise)
+        max_block_size=200 # Maximum block size to consider (prevents quadratic blowup)
+    output:
+        blocked_data="data/R03_block_dataset/blocked_registries.json",
+        pairs="data/R03_block_dataset/candidate_pairs.json"
+    shell:
+        r"""
+        python {input.script} \
+            --dataset_json {input.dataset_json} \
+            --output_dir data/R03_block_dataset \
+            --target_column {params.target_column} \
+            --output_filename {params.output_filename} \
+            --pairs_filename {params.pairs_filename} \
+            --ngram {params.ngram} \
+            --num_perm {params.num_perm} \
+            --bands {params.bands} \
+            --seed {params.seed} \
+            --min_block_size {params.min_block_size} \
+            --max_block_size {params.max_block_size}
+        """
+
+
+# SIMPLE EXPLANATION OF SCORING PROCESS:
+#
+# This rule calculates how similar each pair of potential duplicates is to each other.
+# 
+# In simple terms:
+# 1. We take the candidate pairs identified by the blocking step
+# 2. For each pair, we calculate several similarity scores:
+#    - Jaro-Winkler: Good for names with small edits or typos
+#    - Levenshtein: Measures edit distance (insertions, deletions, substitutions)
+#    - Jaccard: Compares word overlap between names
+#    - Soft TF-IDF: Advanced method that combines word importance with similarity
+# 3. These scores will be used later to determine which pairs are true duplicates
+#
+# Think of it like comparing books - we're measuring how similar they are
+# based on different characteristics (title, author, content, etc.)
+rule R04_score_pairs:
+    input:
+        script="src/scripts/S04_score_pairs.py",
+        dataset_json="data/R02_normalize_dataset/normalized_registries.json",
+        pairs_json="data/R03_block_dataset/candidate_pairs.json"
+    params:
+        output_dir="data/R04_score_pairs",
+        output_filename="scored_pairs.json",
+        target_column="norm__registry_name",      # Column to use for scoring (normalized registry names)
+        jw_prefix_weight=0.1,                    # Controls how much weight to give matching prefixes
+        jw_prefix_max=4,                         # Max prefix length to consider for Jaro-Winkler
+        soft_tfidf_tau=0.9                       # Threshold for token similarity in Soft TF-IDF
+    output:
+        "data/R04_score_pairs/scored_pairs.json"
+    shell:
+        r"""
+        python {input.script} \
+          --dataset_json {input.dataset_json} \
+          --pairs_json {input.pairs_json} \
+          --output_dir {params.output_dir} \
+          --output_filename {params.output_filename} \
+          --target_column {params.target_column} \
+          --jw_prefix_weight {params.jw_prefix_weight} \
+          --jw_prefix_max {params.jw_prefix_max} \
+          --soft_tfidf_tau {params.soft_tfidf_tau}
+        """
+
+
+# SIMPLE EXPLANATION OF TIER-A DEDUPLICATION PROCESS:
+#
+# This rule identifies and clusters duplicate registry records using high-confidence rules.
+#
+# In simple terms:
+# 1. We take the dataset with normalized names and the previously scored pairs
+# 2. We apply several rules to identify definite duplicates (Tier-A):
+#    - R1: Exact normalized name matches
+#    - R2: Very high Jaro-Winkler similarity (>0.985)
+#    - R4: High Soft TF-IDF similarity with good token overlap
+# 3. We cluster the duplicates using a Union-Find algorithm
+# 4. Each record is assigned a cluster ID to group duplicates together
+#
+# Think of it like grouping identical books together on a bookshelf,
+# allowing for minor differences in how the title is written.
+rule R05_dedupe_tier_a:
+    input:
+        script="src/scripts/S05_dedupe_tier_a.py",
+        dataset_json="data/R02_normalize_dataset/normalized_registries.json",
+        scored_pairs_json="data/R04_score_pairs/scored_pairs.json"
+    params:
+        output_dir="data/R05_dedupe_tier_a",
+        output_filename="tier_a_clusters.json",
+        edges_filename="tier_a_edges.json",
+        target_column="norm__registry_name",
+        jw_threshold=0.985,           # Minimum Jaro-Winkler score for Rule R2
+        soft_tfidf_threshold=0.92,    # Minimum Soft TF-IDF score for Rule R4
+        soft_tfidf_min_jaccard=0.60,  # Minimum word overlap required for Rule R4
+        extra_stopwords="",           # Additional words to consider as stopwords
+        cluster_prefix="C"            # Prefix for cluster IDs (e.g., C000123)
+    output:
+        clustered="data/R05_dedupe_tier_a/tier_a_clusters.json",
+        edges="data/R05_dedupe_tier_a/tier_a_edges.json"
+    shell:
+        r"""
+        python {input.script} \
+          --dataset_json {input.dataset_json} \
+          --scored_pairs_json {input.scored_pairs_json} \
+          --output_dir {params.output_dir} \
+          --output_filename {params.output_filename} \
+          --edges_filename {params.edges_filename} \
+          --target_column {params.target_column} \
+          --jw_threshold {params.jw_threshold} \
+          --soft_tfidf_threshold {params.soft_tfidf_threshold} \
+          --soft_tfidf_min_jaccard {params.soft_tfidf_min_jaccard} \
+          --extra_stopwords "{params.extra_stopwords}" \
+          --cluster_prefix {params.cluster_prefix}
+        """
+
+
+# SIMPLE EXPLANATION OF RESULTS EXPLORATION PROCESS:
+#
+# This rule takes the clustered data from the Tier-A deduplication and generates 
+# human-readable reports and statistics.
+#
+# In simple terms:
+# 1. We take the clustered registry data from the previous step
+# 2. We generate several outputs to help analyze the results:
+#    - clusters.csv: Complete dataset sorted by cluster for detailed inspection
+#    - clusters_summary.csv: Statistical overview of each cluster (size, samples)
+#    - report.md: Human-readable Markdown report with top clusters expanded
+#    - stats.json: Overall statistics for programmatic use (total counts, etc.)
+# 3. The report makes it easy to review the largest clusters and validate results
+#
+# Think of it like generating a book report that summarizes the key findings
+# from our deduplication process, making it easy to understand the results.
+rule R06_explore_results:
+    input:
+        script="src/scripts/S06_explore_results.py",
+        clustered_json="data/R05_dedupe_tier_a/tier_a_clusters.json",
+        edges_json="data/R05_dedupe_tier_a/tier_a_edges.json"
+    params:
+        output_dir="data/R06_explore_results",
+        clusters_csv_filename="clusters.csv",
+        summary_csv_filename="clusters_summary.csv",
+        report_md_filename="report.md",
+        stats_json_filename="stats.json",
+        min_cluster_size=2,
+        top_k=30,
+        members_limit=50
+    output:
+        clustered_csv="data/R06_explore_results/clusters.csv",
+        summary_csv="data/R06_explore_results/clusters_summary.csv",
+        report_md="data/R06_explore_results/report.md",
+        stats_json="data/R06_explore_results/stats.json"
+    shell:
+        r"""
+        python {input.script} \
+          --clustered_json {input.clustered_json} \
+          --edges_json {input.edges_json} \
+          --output_dir {params.output_dir} \
+          --clusters_csv_filename {params.clusters_csv_filename} \
+          --summary_csv_filename {params.summary_csv_filename} \
+          --report_md_filename {params.report_md_filename} \
+          --stats_json_filename {params.stats_json_filename} \
+          --min_cluster_size {params.min_cluster_size} \
+          --top_k {params.top_k} \
+          --members_limit {params.members_limit}
+        """
+
+
+# SIMPLE EXPLANATION OF FEATURE EXTRACTION PROCESS:
+#
+# This rule converts labeled registry name pairs into numerical features for model training.
+#
+# In simple terms:
+# 1. Take the file with columns: left_name, right_name, label (0/1 or True/False)
+# 2. Compute six similarity features for each pair:
+#    - Jaro–Winkler: catches small typos and transpositions
+#    - Normalized Levenshtein: measures edit distance relative to string length
+#    - Token Jaccard: compares word overlap, ignoring common stopwords
+#    - TF–IDF cosine (token‐based)
+#    - TF–IDF cosine (char 3–5 grams)
+#    - Overlap coefficient: intersection over smaller token set
+# 3. Split the data into train/test sets for model development
+# 4. Save the resulting feature arrays and metadata for downstream use
+rule R07_make_features:
+    input:
+        script="src/scripts/S07_make_features.py",
+        dataset_json="data/raw/eval_dataset_any_famous_official_reg.json"
+    params:
+        output_dir="data/R07_make_features",
+        left_col="registry_name",
+        right_col="alias",
+        label_col="final_label",
+        test_size=0.2,
+        random_state=42,
+        jw_prefix_weight=0.1,
+        jw_prefix_max=4,
+        save_debug_csv=True
+    output:
+        X_train="data/R07_make_features/X_train.npy",
+        X_test="data/R07_make_features/X_test.npy",
+        y_train="data/R07_make_features/y_train.npy",
+        y_test="data/R07_make_features/y_test.npy",
+        feat_names="data/R07_make_features/feature_names.json",
+        debug_csv="data/R07_make_features/pairs_with_features.csv",
+        pairs_meta="data/R07_make_features/pairs_meta.parquet",
+        train_idx="data/R07_make_features/train_idx.npy",
+        test_idx="data/R07_make_features/test_idx.npy"
+    shell:
+        r"""
+        python {input.script} \
+          --dataset_json {input.dataset_json} \
+          --left_col {params.left_col} \
+          --right_col {params.right_col} \
+          --label_col {params.label_col} \
+          --test_size {params.test_size} \
+          --random_state {params.random_state} \
+          --output_dir {params.output_dir} \
+          --jw_prefix_weight {params.jw_prefix_weight} \
+          --jw_prefix_max {params.jw_prefix_max} \
+          --save_debug_csv
+        """
+
+
+# SIMPLE EXPLANATION OF TRAINING PROCESS:
+#
+# This rule trains a Gradient Boosting classifier on the TRAIN split only.
+# It runs a small GridSearchCV and saves the best model and tuning artifacts.
+
+rule R08_train_gbm:
+    input:
+        script="src/scripts/S08_train_gbm.py",
+        X_train="data/R07_make_features/X_train.npy",
+        y_train="data/R07_make_features/y_train.npy"
+    params:
+        features_dir="data/R07_make_features",
+        output_dir="data/R08_train_gbm",
+        scoring="average_precision",
+        cv=5,
+        n_jobs=-1,
+        random_state=42
+    output:
+        model="data/R08_train_gbm/best_model.joblib",
+        best_params="data/R08_train_gbm/best_params.json",
+        cv_results="data/R08_train_gbm/cv_results.csv",
+        summary="data/R08_train_gbm/training_summary.json"
+    shell:
+        r"""
+        python {input.script} \
+          --features_dir {params.features_dir} \
+          --output_dir {params.output_dir} \
+          --scoring {params.scoring} \
+          --cv {params.cv} \
+          --n_jobs {params.n_jobs} \
+          --random_state {params.random_state}
+        """
+
+
+# SIMPLE EXPLANATION OF EVALUATION:
+#
+# This rule loads the best trained model and the test split,
+# computes standard metrics/curves, and writes plots and CSVs.
+
+rule R09_eval_gbm:
+    input:
+        script="src/scripts/S09_eval_gbm.py",
+        model="data/R08_train_gbm/best_model.joblib",
+        X_test="data/R07_make_features/X_test.npy",
+        y_test="data/R07_make_features/y_test.npy",
+        feature_names="data/R07_make_features/feature_names.json",
+        pairs_meta="data/R07_make_features/pairs_meta.parquet",
+        test_idx="data/R07_make_features/test_idx.npy"
+    params:
+        features_dir="data/R07_make_features",
+        model_path="data/R08_train_gbm/best_model.joblib",
+        output_dir="data/R09_eval_gbm",
+        threshold=0.5,          # e.g., 0.5; leave empty to use default/optimize
+        optimize="none"        # choices: none, f1, youden
+    output:
+        metrics="data/R09_eval_gbm/metrics.json",
+        pr_csv="data/R09_eval_gbm/pr_curve.csv",
+        roc_csv="data/R09_eval_gbm/roc_curve.csv",
+        preds="data/R09_eval_gbm/predictions.csv",
+        pr_png="data/R09_eval_gbm/pr_curve.png",
+        roc_png="data/R09_eval_gbm/roc_curve.png",
+        calib_png="data/R09_eval_gbm/calibration.png",
+        hist_png="data/R09_eval_gbm/proba_hist.png",
+        report="data/R09_eval_gbm/classification_report.txt",
+        feature_importance_png="data/R09_eval_gbm/feature_importance.png"
+    shell:
+        r"""
+        python {input.script} \
+          --features_dir {params.features_dir} \
+          --model_path {params.model_path} \
+          --output_dir {params.output_dir} \
+          --threshold {params.threshold} \
+          --optimize {params.optimize} \
+          --feature_names_path {input.feature_names} \
+          --pairs_meta {input.pairs_meta} \
+          --test_idx {input.test_idx}
+        """
+

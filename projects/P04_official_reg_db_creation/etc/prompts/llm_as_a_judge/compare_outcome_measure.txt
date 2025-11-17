@@ -1,0 +1,76 @@
+CONTEXT:
+You are an expert of real-world clinical studies, especially at litterature review.
+You are provided with two strings representing the terminologies of Primary analytic concepts previously extracted from a publication's title and abstract.
+If the publication is "Confirmatory", these strings refer to the endpoints used to evaluate the effect of an intervention or exposure in the given clinical study.
+If the publication is "Exploratory", these strings refer to the main focus of the study, which could be a risk factor, data-quality / process metric, or descriptive statistics.
+
+TASK:
+Your task is to determine whether these two terminologies refer to the same Primary analytic concept or not.
+
+ADDITIONAL INSTRUCTIONS:
+1. In making your decision, consider variations such as abbreviations, umbrella terms, punctuation, minor wording differences, acronyms, and differences in context that may indicate they refer to the same entity.
+2. You will not consider the publication type (Exploratory or Confirmatory) in your decision.
+3. If one string/terminology is broader but mainly includes the other, you should consider them as the same.
+4. If one string lists multiple items and the other also, and most items globally match, you should consider them as the same.
+5. If most of the key concepts found in string n°2 can bee found in string n°1, you should consider them as the same. 
+6. If more than 50% of the concepts found in string n°2 are missing or different in string n°1, you should consider them as different.
+
+* Example 1: 
+  * String 1: "IR, Median overall survival, MGMT promoter-methylation frequency"
+  * String 2: "Incidence rate, Overall survival"
+  * Decision: "same" (because most of the key concepts are present in both strings)
+* Example 2:
+  * String 1: "IR, MGMT promoter-methylation frequency"
+  * String 2: "Incidence rate, Overall survival, Tumor size"
+  * Decision: "different" (because more than 50% of the key concepts are missing or different in string n°1)
+
+Output your answer as a JSON object with the following keys:
+- "explanation": A brief explanation of your reasoning. It should be synthetic and resums the key points that led you to your decision. Use acronyms to shorten your answer (20 words maximum)
+- "final_decision": Either "same" or "different".
+
+<example1> 
+Outcome measure 1: "Ischemic stroke and hemorrhagic events"
+Outcome measure 2: "Incidence of ischemic stroke and hemorrhages"
+{
+  "explanation": "Both phrases describe the same clinical events (ischemic stroke and hemorrhages) and their occurrence",
+  "final_decision": "same" }
+</example1>
+
+<example2> 
+Outcome measure 1: "Body mass index (BMI) and BMI changes over a 2-year period" 
+Outcome measure 2: "Change in participants' body mass index across 24 months" 
+{
+  "explanation": "Both phrases refer to the measurement of body mass index (BMI) and its changes over a 2-year period",
+  "final_decision": "same"
+}
+</example2>
+
+<example3> 
+Outcome measure 1: "Sudden cardiac death (SCD)" 
+Outcome measure 2: "Unexpected death attributable to sudden loss of heart function" 
+{ 
+  "explanation": "Both phrases describe the same clinical event of sudden cardiac death, despite different wording.",
+  "final_decision": "same"
+}
+</example3>
+
+<example4>
+Outcome measure 1: "Risks for metachronous advanced adenomas (AAs) and large (&gt;1 cm) serrated polyps"
+Outcome measure 2: "Risk of colorectal cancer recurrence within 5 years"
+{
+  "explanation": "While both relate to colorectal pathology, one measures the future occurrence of specific pre‑cancerous polyps, whereas the other measures recurrence of established colorectal cancer. Both should have been extracted.",
+  "final_decision": "different"
+}
+</example4>
+
+<example5>
+Outcome measure 1: "Pneumonia occurrence"
+Outcome measure 2: "Rate of skin rash events"
+{
+  "explanation": "Pneumonia occurrence concerns respiratory infection, whereas skin rash events relate to dermatologic reactions -> clearly different",
+  "final_decision": "different"
+}
+</example5>
+
+Outcome measure 1: "{{content_a}}"
+Outcome measure 2: "{{content_b}}"

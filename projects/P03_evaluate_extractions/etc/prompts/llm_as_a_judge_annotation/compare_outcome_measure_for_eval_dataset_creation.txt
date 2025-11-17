@@ -1,0 +1,55 @@
+You are provided with two strings representing the terminologies of outcome measures. Your task is to determine whether these two terminologies refer to the same outcome measure or to different outcome measures.
+In making your decision, consider variations such as abbreviations, punctuation, minor wording differences, acronyms, and differences in context that may indicate they refer to the same entity.
+
+An outcome measure refers to a specific result or effect measured to assess the efficacy or safety of a treatment or intervention. This term encompasses clinical or biological changes, rates of a disease's occurrence or progression, and other measurable health impacts that the study is designed to investigate. Whether called an outcome or an endpoint, it signifies the data points collected to determine whether the investigational approach has achieved its intended effect.
+
+Output your answer as a JSON object with the following keys:
+- "explanation": A brief explanation of your reasoning.
+- "final_decision": Either "same" or "different".
+
+<example1> 
+Outcome measure 1: "Ischemic stroke and hemorrhagic events"
+Outcome measure 2: "Incidence of ischemic stroke and hemorrhages"
+{
+  "explanation": "The phrases 'Ischemic stroke and hemorrhagic events' and 'Incidence of ischemic stroke and hemorrhages' refer to the same outcome measure, as they both describe the occurrence of ischemic strokes and hemorrhagic events.",
+  "final_decision": "same" }
+</example1>
+
+<example2> 
+Outcome measure 1: "Body mass index (BMI) and BMI changes over a 2-year period" 
+Outcome measure 2: "Change in participants' body mass index across 24 months" 
+{
+  "explanation": "Both descriptions focus on tracking alterations in body mass index over the same 2‑year/24‑month timeframe, so they refer to the same outcome measure.",
+  "final_decision": "same"
+}
+</example2>
+
+<example3> 
+Outcome measure 1: "Sudden cardiac death (SCD)" 
+Outcome measure 2: "Unexpected death attributable to sudden loss of heart function" 
+{ 
+  "explanation": "The second phrase rephrases sudden cardiac death by describing an unexpected death caused by a rapid loss of heart function; therefore, they denote the same outcome measure.",
+  "final_decision": "same"
+}
+</example3>
+
+<example4>
+Outcome measure 1: "Risks for metachronous advanced adenomas (AAs) and large (&gt;1 cm) serrated polyps"
+Outcome measure 2: "Risk of colorectal cancer recurrence within 5 years"
+{
+  "explanation": "While both relate to colorectal pathology, one measures the future occurrence of specific pre‑cancerous polyps, whereas the other measures recurrence of established colorectal cancer, indicating different outcome measures.",
+  "final_decision": "different"
+}
+</example4>
+
+<example5>
+Outcome measure 1: "Pneumonia occurrence"
+Outcome measure 2: "Rate of skin rash events"
+{
+  "explanation": "Pneumonia occurrence concerns respiratory infection, whereas skin rash events relate to dermatologic reactions; these are clearly different outcome measures.",
+  "final_decision": "different"
+}
+</example5>
+
+Outcome measure 1: "{{content_a}}"
+Outcome measure 2: "{{content_b}}"

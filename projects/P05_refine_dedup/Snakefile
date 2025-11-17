@@ -1,0 +1,137 @@
+# This Snakefile is part of the P05_refine_dedup project.
+
+### --- Workflow 1 - Create evaluation dataset --- ###
+
+# First, embed registry names using Mistral embeddings.
+rule R01_embed_registry_names:
+    input:
+        script="src/scripts/S01_embed_registry_names.py",
+    output:
+        embeddings_all="data/R02_embed_publications_MistralEmbed/Mistral_embeddings.parquet",
+        local_output_embeddings_all_jsonl_template="data/W01/R01_embed_registry_names/all/1.jsonl",
+        embeddings_sampled="data/R02_embed_publications_MistralEmbed/Mistral_embeddings_sample.parquet",
+    params:
+        s3_output_registries_dir = "registry_data_catalog_experiments/P04_official_reg_db_creation/datasets_versions/update_medical_condition/registry_data",
+    log:
+        "logs/R02_embed_publications_MistralEmbed.log"
+    shell:
+        """
+        python {input.script} \
+            --remaining_data_source_names {input.remaining_data_source_names} \
+            --embeddings_all {output.embeddings_all} \
+            --embeddings_sampled {output.embeddings_sampled} \
+            2>&1 | tee {log}
+        """
+
+# Next, build empirical clusters on the sampled dataset of registry names.
+rule R02_run_initial_clustering_of_registry_names:
+    input:
+        script="src/scripts/S301_build_empirical_clusters_on_sample_dataset.py",
+        # embeddings_sampled="data/R02_embed_publications_MistralEmbed/Mistral_embeddings_sample.parquet"
+        embeddings_sampled="../../datasets/003_embeddings_of_registry_names_dataset/Mistral_embeddings_sample.parquet"
+    output:
+        clusters_parquet="data/R03_build_empirical_clusters_on_sample_dataset/clusters.parquet"
+    log:
+        "logs/R03_build_empirical_clusters_on_sample_dataset.log"
+    shell:
+        """
+        python {input.script} \
+            --embeddings_sampled {input.embeddings_sampled} \
+            --clusters_parquet {output.clusters_parquet} \
+            2>&1 | tee {log}
+        """
+
+# Now, build the initial version of the evaluation dataset from the empirical clusters.
+rule R03_build_initial_version_of_eval_dataset:
+    input:
+        script="src/scripts/S401_eval_dataset_build_pairs_from_empirical_custers.py",
+        clusters_parquet="data/R03_build_empirical_clusters_on_sample_dataset/clusters.parquet",
+    output:
+        pairs_parquet="data/R04_eval_dataset_build_pairs_from_empirical_custers/pairs.parquet",
+    log:
+        "logs/R04_eval_dataset_build_pairs_from_empirical_custers.log"
+    shell:
+        """
+        python {input.script} \
+            --clusters_parquet {input.clusters_parquet} \
+            --pairs_parquet {output.pairs_parquet} \
+            2>&1 | tee {log}
+        """
+
+# Finally, refine the evaluation dataset using a LLM as a judge
+rule R04_refine_eval_dataset_with_llm:
+    input:
+        script="src/scripts/S501_eval_dataset_refine_pairs_with_llm.py",
+        prompt="etc/prompts/prompt_pairing_assigment_v2.txt",
+        pairs_parquet="data/R04_eval_dataset_build_pairs_from_empirical_custers/pairs.parquet",
+    output:
+        refined_evaluation_dataset="data/R05_eval_dataset_refine_pairs_with_llm/refined_pairs.parquet",
+        track_category_switches="data/R05_eval_dataset_refine_pairs_with_llm/track_category_switches.parquet",
+    log:
+        "logs/R501_eval_dataset_refine_pairs_with_llm.log"
+    shell:
+        """
+        python {input.script} \
+            --pairs_parquet {input.pairs_parquet} \
+            --prompt {input.prompt} \
+            --output_eval_dataset {output.refined_pairs_parquet} \
+            --output_track_category_switches {output.track_category_switches} \
+            2>&1 | tee {log}
+        """
+# Next, train a dbscan model to find the best clustering model (best parameters) based on the refined evaluation dataset, using grid search.
+rule R05_train_dbscan_to_find_best_clustering_model:
+    input:
+        script="src/scripts/S601_exps_w_training_of_clustering_model.py",
+        training_dataset="../../datasets/003_embeddings_of_registry_names_dataset/Mistral_embeddings.parquet",
+        evaluation_dataset="../../datasets/004_registry_names_deduplication_eval_dataset/evaluation_dataset.parquet",
+    output:
+        directory("data/R06_exps_w_training_of_clustering_model"),
+    log:
+        "logs/R06_exps_w_training_of_clustering_model.log",
+    shell:
+        """
+        python {input.script} \
+            --training_dataset {input.training_dataset} \
+            --evaluation_dataset {input.evaluation_dataset} \
+            --output_dir {output} \
+            2>&1 | tee {log}
+        """
+
+# Optionally, you can try hdbscan method, but this implies diff
+# Next, apply this best clustering model to the training dataset and assess its performance on the evaluation dataset.
+rule R06_evaluate_best_clustering_model_performance:
+    input:
+        script="src/scripts/S602_find_best_clustering_model_w_grid_search.py",
+        training_dataset="../../datasets/003_embeddings_of_registry_names_dataset/Mistral_embeddings.parquet",
+        evaluation_dataset="../../datasets/004_registry_names_deduplication_eval_dataset/evaluation_dataset.parquet",
+    output:
+        directory("data/R07_find_best_clustering_model_w_grid_search"),
+    log:
+        "logs/R07_find_best_clustering_model_w_grid_search.log",
+    shell:
+        """
+        python {input.script} \
+            --training_dataset {input.training_dataset} \
+            --evaluation_dataset {input.evaluation_dataset} \
+            --output_dir {output} \
+            2>&1 | tee {log}
+        """
+
+# Finally, evaluate the performance on EMA registries
+rule R08_evaluate_best_clustering_model_performance_on_ema_registries:
+    input:
+        script="src/scripts/S603_eval_best_clustering_model_on_ema_registries.py",
+        training_dataset="../../datasets/003_embeddings_of_registry_names_dataset/Mistral_embeddings.parquet",
+        evaluation_dataset="../../datasets/004_registry_names_deduplication_eval_dataset/evaluation_dataset.parquet",
+    output:
+        directory("data/R09_eval_best_clustering_model_on_ema_registries"),
+    log:
+        "logs/R09_eval_best_clustering_model_on_ema_registries.log",
+    shell:
+        """
+        python {input.script} \
+            --training_dataset {input.training_dataset} \
+            --evaluation_dataset {input.evaluation_dataset} \
+            --output_dir {output} \
+            2>&1 | tee {log}
+        """

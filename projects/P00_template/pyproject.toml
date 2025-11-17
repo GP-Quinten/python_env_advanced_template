@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "p00-template"
+version = "0.1.0"
+description = ""
+authors = ["Boris Kopin <b.kopin@quinten-france.com>"]
+readme = "README.md"
+packages = [
+    { include = "p00_template", from = "src" },
+    { include = "scripts", from = "src" }
+]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+snakemake = "^8.29.2"
+click = "^8.1.8"
+registry-catalog-data-science = {path = "../..", develop = true}
+ipykernel = "^6.29.5"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

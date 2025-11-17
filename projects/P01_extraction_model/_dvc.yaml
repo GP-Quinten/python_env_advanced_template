@@ -1,0 +1,173 @@
+vars:
+  - raw_pubmed_dataset_name: "LLM Extraction - Evaluation dataset for Mistral 8x7B.xlsx"
+  - base_pubmed_dataset_name: "base_pubmed_dataset"
+
+stages:
+  S101_prepare_base_pubmed_dataset:
+    cmd: >-
+      python src/scripts/S101_prepare_base_pubmed_dataset.py
+      --raw_annotated_ds_excel "data/00_raw/${raw_pubmed_dataset_name}"
+      --base_pubmed_dataset_jsonl "data/S101_prepare_base_pubmed_dataset/${base_pubmed_dataset_name}.jsonl"
+    deps:
+      - src/scripts/S101_prepare_base_pubmed_dataset.py
+      - "data/00_raw/${raw_pubmed_dataset_name}"
+    outs:
+      - "data/S101_prepare_base_pubmed_dataset/${base_pubmed_dataset_name}.jsonl":
+          cache: true
+
+  S102_sample_dataset_from_prod:
+    cmd: >-
+      python src/scripts/S102_sample_dataset_from_prod.py
+      --n_samples 1000
+      --collection_name Publication_v2
+      --output_jsonl "data/S102_sample_dataset_from_prod/prod_publication_1k_dataset.jsonl"
+    deps:
+      - src/scripts/S102_sample_dataset_from_prod.py
+    outs:
+      - "data/S102_sample_dataset_from_prod/prod_publication_1k_dataset.jsonl":
+          cache: true
+
+
+  S201_annotate_with_llm_small:
+    cmd: >-
+      python src/scripts/S201_annotate_with_llm.py
+      --base_pubmed_dataset_jsonl "data/S101_prepare_base_pubmed_dataset/${base_pubmed_dataset_name}.jsonl"
+      --prompt_txt "etc/prompts/prompt_publications_v1.1.txt"
+      --model_config "etc/configs/small_mistral_config.json"
+      --output_jsonl "data/S201_annotate_with_llm/${base_pubmed_dataset_name}_llm_annotated_small.jsonl"
+    deps:
+      - src/scripts/S201_annotate_with_llm.py
+      - "data/S101_prepare_base_pubmed_dataset/${base_pubmed_dataset_name}.jsonl"
+      - "etc/prompts/annotation_prompt.txt"
+      - "etc/configs/small_mistral_config.json"
+    outs:
+      - "data/S201_annotate_with_llm/${base_pubmed_dataset_name}_llm_annotated_small.jsonl":
+          cache: true
+
+  S201_annotate_with_llm_large:
+    cmd: >-
+      python src/scripts/S201_annotate_with_llm.py
+      --base_pubmed_dataset_jsonl "data/S101_prepare_base_pubmed_dataset/${base_pubmed_dataset_name}.jsonl"
+      --prompt_txt "etc/prompts/prompt_publications_v1.1.txt"
+      --model_config "etc/configs/large_mistral_config.json"
+      --output_jsonl "data/S201_annotate_with_llm/${base_pubmed_dataset_name}_llm_annotated_large.jsonl"
+    deps:
+      - src/scripts/S201_annotate_with_llm.py
+      - "data/S101_prepare_base_pubmed_dataset/${base_pubmed_dataset_name}.jsonl"
+      - "etc/prompts/annotation_prompt.txt"
+      - "etc/configs/large_mistral_config.json"
+    outs:
+      - "data/S201_annotate_with_llm/${base_pubmed_dataset_name}_llm_annotated_large.jsonl":
+          cache: true
+
+  S201_annotate_with_llm_o3:
+    cmd: >-
+      python src/scripts/S201_annotate_with_llm_openai.py
+      --base_pubmed_dataset_jsonl "data/S101_prepare_base_pubmed_dataset/${base_pubmed_dataset_name}.jsonl"
+      --prompt_txt "etc/prompts/prompt_publications_v1.1.txt"
+      --model_config "etc/configs/o3_openai_config.json"
+      --output_jsonl "data/S201_annotate_with_llm/${base_pubmed_dataset_name}_llm_annotated_o3.jsonl"
+    deps:
+      - src/scripts/S201_annotate_with_llm_openai.py
+      - "data/S101_prepare_base_pubmed_dataset/${base_pubmed_dataset_name}.jsonl"
+      - "etc/prompts/annotation_prompt.txt"
+      - "etc/configs/o3_openai_config.json"
+    outs:
+      - "data/S201_annotate_with_llm/${base_pubmed_dataset_name}_llm_annotated_o3.jsonl":
+          cache: true
+
+  S301_parse_llm_annotation_small:
+    cmd: >-
+      python src/scripts/S301_parse_llm_annotation.py
+      --llm_annotated_jsonl "data/S201_annotate_with_llm/${base_pubmed_dataset_name}_llm_annotated_small.jsonl"
+      --output_jsonl "data/S301_parse_llm_annotation/${base_pubmed_dataset_name}_llm_parsed_small.jsonl"
+    deps:
+      - src/scripts/S301_parse_llm_annotation.py
+      - "data/S201_annotate_with_llm/${base_pubmed_dataset_name}_llm_annotated_small.jsonl"
+    outs:
+      - "data/S301_parse_llm_annotation/${base_pubmed_dataset_name}_llm_parsed_small.jsonl":
+          cache: true
+
+  S301_parse_llm_annotation_large:
+    cmd: >-
+      python src/scripts/S301_parse_llm_annotation.py
+      --llm_annotated_jsonl "data/S201_annotate_with_llm/${base_pubmed_dataset_name}_llm_annotated_large.jsonl"
+      --output_jsonl "data/S301_parse_llm_annotation/${base_pubmed_dataset_name}_llm_parsed_large.jsonl"
+    deps:
+      - src/scripts/S301_parse_llm_annotation.py
+      - "data/S201_annotate_with_llm/${base_pubmed_dataset_name}_llm_annotated_large.jsonl"
+    outs:
+      - "data/S301_parse_llm_annotation/${base_pubmed_dataset_name}_llm_parsed_large.jsonl":
+          cache: true
+
+  S301_parse_llm_annotation_o3:
+    cmd: >-
+      python src/scripts/S301_parse_llm_annotation.py
+      --llm_annotated_jsonl "data/S201_annotate_with_llm/${base_pubmed_dataset_name}_llm_annotated_o3.jsonl"
+      --output_jsonl "data/S301_parse_llm_annotation/${base_pubmed_dataset_name}_llm_parsed_o3.jsonl"
+    deps:
+      - src/scripts/S301_parse_llm_annotation.py
+      - "data/S201_annotate_with_llm/${base_pubmed_dataset_name}_llm_annotated_o3.jsonl"
+    outs:
+      - "data/S301_parse_llm_annotation/${base_pubmed_dataset_name}_llm_parsed_o3.jsonl":
+          cache: true
+
+  S401_compare_results:
+    cmd: >-
+      python src/scripts/S401_compare_results.py
+      --model_a_dataset_jsonl "data/S301_parse_llm_annotation/${base_pubmed_dataset_name}_llm_parsed_small.jsonl"
+      --model_b_dataset_jsonl "data/S301_parse_llm_annotation/${base_pubmed_dataset_name}_llm_parsed_large.jsonl"
+      --prompt_txt "etc/prompts/compare_two_results_v1.1.txt"
+      --model_config "etc/configs/large_mistral_config.json"
+      --output_jsonl "data/S401_compare_results/${base_pubmed_dataset_name}_llm_comparison_small_vs_large.jsonl"
+    deps:
+      - src/scripts/S401_compare_results.py
+      - "data/S301_parse_llm_annotation/${base_pubmed_dataset_name}_llm_parsed_small.jsonl"
+      - "data/S301_parse_llm_annotation/${base_pubmed_dataset_name}_llm_parsed_large.jsonl"
+      - "etc/prompts/compare_two_results_v1.1.txt"
+      - "etc/configs/large_mistral_config.json"
+    outs:
+      - "data/S401_compare_results/${base_pubmed_dataset_name}_llm_comparison_small_vs_large.jsonl":
+          cache: true
+
+  S401_compare_results_o3_vs_large:
+    cmd: >-
+      python src/scripts/S401_compare_results.py
+      --model_a_dataset_jsonl "data/S301_parse_llm_annotation/${base_pubmed_dataset_name}_llm_parsed_o3.jsonl"
+      --model_b_dataset_jsonl "data/S301_parse_llm_annotation/${base_pubmed_dataset_name}_llm_parsed_large.jsonl"
+      --prompt_txt "etc/prompts/compare_two_results_v1.1.txt"
+      --model_config "etc/configs/large_mistral_config.json"
+      --output_jsonl "data/S401_compare_results/${base_pubmed_dataset_name}_llm_comparison_o3_vs_large.jsonl"
+    deps:
+      - src/scripts/S401_compare_results.py
+      - "data/S301_parse_llm_annotation/${base_pubmed_dataset_name}_llm_parsed_o3.jsonl"
+      - "data/S301_parse_llm_annotation/${base_pubmed_dataset_name}_llm_parsed_large.jsonl"
+      - "etc/prompts/compare_two_results_v1.1.txt"
+      - "etc/configs/large_mistral_config.json"
+    outs:
+      - "data/S401_compare_results/${base_pubmed_dataset_name}_llm_comparison_o3_vs_large.jsonl":
+          cache: true
+
+  S501_parse_llm_annotation_comparison_small_vs_large:
+    cmd: >-
+      python src/scripts/S301_parse_llm_annotation.py
+      --llm_annotated_jsonl "data/S401_compare_results/${base_pubmed_dataset_name}_llm_comparison_small_vs_large.jsonl"
+      --output_jsonl "data/S501_parse_llm_annotation_comparison/${base_pubmed_dataset_name}_llm_comparison_parsed_small_vs_large.jsonl"
+    deps:
+      - src/scripts/S301_parse_llm_annotation.py
+      - "data/S401_compare_results/${base_pubmed_dataset_name}_llm_comparison_small_vs_large.jsonl"
+    outs:
+      - "data/S501_parse_llm_annotation_comparison/${base_pubmed_dataset_name}_llm_comparison_parsed_small_vs_large.jsonl":
+          cache: true
+
+  S501_parse_llm_annotation_comparison_o3_vs_large:
+    cmd: >-
+      python src/scripts/S301_parse_llm_annotation.py
+      --llm_annotated_jsonl "data/S401_compare_results/${base_pubmed_dataset_name}_llm_comparison_small_vs_large.jsonl"
+      --output_jsonl "data/S501_parse_llm_annotation_comparison/${base_pubmed_dataset_name}_llm_comparison_parsed_o3_vs_large.jsonl"
+    deps:
+      - src/scripts/S301_parse_llm_annotation.py
+      - "data/S401_compare_results/${base_pubmed_dataset_name}_llm_comparison_small_vs_large.jsonl"
+    outs:
+      - "data/S501_parse_llm_annotation_comparison/${base_pubmed_dataset_name}_llm_comparison_parsed_o3_vs_large.jsonl":
+          cache: true

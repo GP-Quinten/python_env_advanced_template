@@ -1,0 +1,5 @@
+outs:
+- md5: fc8e4c5abac8c50342b429fc15082eeb
+  size: 314586
+  hash: md5
+  path: dedup_100_famous_european_registries.json

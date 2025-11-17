@@ -1,0 +1,5 @@
+outs:
+- md5: 83435c16f75b15e74fe45adaab00cebf
+  size: 16455
+  hash: md5
+  path: queries_GH20250725.xlsx

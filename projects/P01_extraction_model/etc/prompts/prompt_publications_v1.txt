@@ -1,0 +1,103 @@
+Context: Patient registries are organised systems that use observational methods to collect uniform data on a population defined by a particular disease, condition or exposure, and that is followed over time. You need to extract information from medical articles to better characterize patient registries. A paragraph refers to a specific patient registry if it describes one, or if it describes a study based on data from a specific patient registry.
+Register and regitry are synonyms.
+
+Given the paragraph below (defined by "Text_to_analyze") which concatenates title and abstract of medical publications do the following tasks:
+If the paragraph refers to a patient registry refer to a patient registry, do the following tasks, else, only output "Registry related: no" and stop there. Do not justify or extract anything if "Registry related: no".
+- Extract the name of the patient registry if it is given, if not, output "Not specified". 
+- Extract the PICO. The PICO stands for Population description, Intervention, Comparator, Outcome measure.
+- Extract medical condition(s) of the studied population.
+- Extract sex of the studied population.
+- Extract age group of the studied population.
+- Classify the design model of the study performed in the paragraph.
+- Extract the population size.
+- Extract the country of the study.
+- Population follow-up duration.
+
+The definitions are as follows:
+- Population description: refers to the group of individuals or subjects that researchers target for inclusion in the study based on specific criteria. This group is chosen to represent the larger body of people to whom the results will be applicable. The criteria for inclusion might include age, gender, medical condition or health status, and other demographic or medical characteristics that define who is eligible to participate in the trial. The population is essential for determining the relevance and applicability of the study's findings to the broader public or to specific subsets of patients.
+- Intervention: refers to a specific treatment or set of actions administered to participants. This can include medication, surgical procedures, behavioral modifications, lifestyle changes, or other therapeutic strategies implemented to test their efficacy or effects on health outcomes. If several interventions, list all of them.
+- Comparator: a reference used to evaluate the impact of a condition or the effect of an intervention. When it exists, the comparator (or control) group has a different condition or intervention compared to the studied population. Researchers compare results from the control group with results from the experimental group to find and learn from any differences. If several comparators, list all of them.
+- Outcome measure: refers to a specific result or effect measured to assess the efficacy or safety of a treatment or intervention. This term encompasses clinical or biological changes, rates of a disease's occurrence or progression, and other measurable health impacts that the study is designed to investigate. Whether called an outcome or an endpoint, it signifies the data points collected to determine whether the investigational approach has achieved its intended effect. If several outcomes/endpoints, list all of them.
+- Medical condition: The medical condition, disorder, syndrome, illness, or injury that is being studied. Medical conditions may also include other health-related issues, such as lifespan, quality of life, and health risks. Can be a list of conditions separated with a comma.
+- Population sex: Population sex of the population included. You are only strictly allowed to use classes among: "Male", "Female".
+- Population age group: Age of the population included. You are only strictly allowed to use classes among: "Child", "Adult", "Older Adult".
+- Design model: Class of study. You are only strictly allowed to use one class among the 7 below:
+* Randomized Control Trial (RCT): An experimental study where participants are randomly assigned to a treatment or control group to measure the effectiveness of interventions.
+* Cohort studies: Observational studies that follow a group of people over time to determine how certain exposures affect specific outcomes.
+* Case-control studies: Observational studies that compare individuals with a particular condition (cases) to those without (controls) to identify factors that may contribute to the condition.
+* Case-only studies: Observational studies in which cases are the only subjects used to estimate or test hypotheses about effects.
+* Cross-sectional studies: Observational studies that analyze data from a population at a single point in time.
+* Cost studies: include all cost analyses (e.g., cost-effectiveness).
+* Not specified: If no category corresponds or not specified.
+- Population size: Size of the population considered in the study.
+- Geographical area: Patient geographical country.
+- Population follow-up: Duration of the study.
+
+Output format of your answer:
+Registry related: is it related to a patient registry, answer like a text classifier algorithm with yes or no | Registry name
+Population description: Population description found
+Comparator: Comparison found
+Outcome measure: Outcome found
+Medical condition: list of population conditions separated with a comma, restricted to medical terms like in ICD-10 classification, don't make any sentence.
+Population sex: One sex or list of sexes separated with a comma, don't make any sentence.
+Population age group: One age group or list of age groups, don't make any sentence.
+Design model: Justification for the class selected | Class of study of the publication, answer like a text classifier algorithm
+Population size: Number of patients. Should be a number, without any textual precision.
+Geographical area: Country of origin of the population. Can also be a list of countries separated with a comma, can not be a region or a city.
+Population follow-up: Population follow-up duration.
+
+Constraints:
+- For "Registry related: no", do not justify your answer
+- If the information is not available, write only "Not specified"
+- Only study type class defined above is allowed for an answer, don't add comment to study type class.
+- When asserting inclusion criteria, striclty answer with "Yes" or "No" only
+- Limit strictly your answer to the defined format with no additional comments
+- Be synthetic when answering
+- Do not add anything in addition to the proposed output format  
+
+5 examples of answer:
+
+Registry related: yes | DAPTS ACE-registry
+Population description: Patients with cerebral aneurysm who underwent stent-assisted coil embolization (SACE)
+Intervention: Dual antiplatelet therapy (DAPT)
+Comparator: Long-term DAPT group (> 6 months) vs short-term DATP group (≤ 6 months)
+Outcome measure: Ischemic stroke and hemorrhagic events
+Medical condition: Cerebral aneurysm
+Population sex: Not specified
+Population age group: Not specified
+Design model: Observational studies | Cohort studies
+Population size: 313
+Geographical area: Japan
+Population follow-up: 15 months
+
+Registry related: no
+
+Registry related: yes | Muerte Súbita en Insuficiencia Cardíaca (MUSIC) registry
+Population description: Ambulatory HF patients with New York Heart Association functional class II to III and left ventricular ejection fraction 45%
+Intervention: Not specified
+Comparator: Not specified
+Outcome measure: Sudden cardiac death (SCD)
+Medical condition: Chronic heart failure, heart failure
+Population sex: Not specified
+Population age group: Not specified
+Design model: Nested case-control study | Case-control studies
+Population size: 99,000
+Geographical area: Not specified
+Population follow-up: 3 years
+
+Registry related: yes | Not specified
+Population description: Patients with in-hospital strokes
+Intervention: Not specified
+Comparator: Not specified
+Outcome measure: Clinical characteristics, neurological care, and mortality
+Medical condition: Stroke
+Population sex: Male, Female
+Population age group: Not specified
+Design model: This is a prospective registry study | Cohort studies
+Population size: Not specified
+Geographical area: Not specified
+Population follow-up: Not specified
+
+Registry related: no
+
+Text_to_analyze: 

@@ -1,0 +1,16 @@
+/poetry.lock
+/poetry.toml
+
+.cache
+.env
+
+# Snakemake
+.snakemake
+
+# python
+*.pyc
+__pycache__/
+.python-version
+
+# max os
+.DS_Store

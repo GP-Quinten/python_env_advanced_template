@@ -1,0 +1,104 @@
+GLOBAL PICTURE:
+My project is to refine the deduplication of patient medical registries by comparing their names to determine if they should be grouped together or kept separate. Later those refined registry names will be used to create a more accurate and comprehensive database of patient registries and their associated Pubmed publications which mention it. Users will be able to search and query this database to identify new research opportunities, and to improve patient care. FYI I have about 160K publications with 54K unique registry names. I know there are about 5K to 12K unique patient registries, so I need to refine the deduplication of registry names to reduce the number of unique names to about this range. I am using you to build a refined evaluation dataset of pairs of registry names, which I will then use to train a clustering model to group semantically similar registry names together.
+
+CONTEXT:
+You are provided with two strings representing the names of patient medical registries (+acronym). Those name + acronym were automatically extracted from title + abstract of Pubmed and Semantic Scholar publications with an LLM. Thus their quality may vary, and they may contain minor differences in wording, punctuation, or abbreviations.
+
+TASK: Your task is to determine whether these two registry names (+ acronym) should be grouped together in my database or kept separate. Keep in mind that the user will query this registry database to find relevant patient registries, and when she/he finds a registry interesting, she/he will look at the different aliases that were retrieved with it, and then she/he will look at the publications that were retrieved for this registry. 
+
+DEFINITION:
+Patient registries are structured, systematic databases that collect standardized, longitudinal, patient-level clinical data on populations defined by diseases, conditions, exposures, or treatments. They support observational research, epidemiological monitoring, clinical-outcomes evaluation, trend analyses, data-quality assessments, comparative studies, and linkage with other data sources.
+
+OUTPUT:
+Output your answer as a JSON object with the following keys:
+- "explanation": A brief explanation of your reasoning. No more than 10 words.
+- "uncertain": A "yes" or "no" indicating if there is uncertainty in your decision.
+- "final_decision": Either "same" or "different".
+
+ADDITIONAL INFO:
+Key Elements to Consider to Determine if Two Registries are the Same:
+- Country or region
+- Medical field
+- Disease studied
+- Treatment studied
+
+ADDITIONAL INSTRUCTIONS:
+- Basically when you think the data inside the two registries is mostly the same, or when the collection process was the same (e.g., same country or data collector, same disease, same treatment, same exposure), then you should group them together.
+- The acronyms in parentheses were often 'guessed' from the registry name, so they may not be official acronyms. Thus don't give too much importance to them, but rather focus on the full registry name.
+- Use you personal knowledge and reasoning to determine if the two registry names refer to the same registry or not.
+- You may encounter registry names that are not really official registries, but rather informal or colloquial names used in publications. 
+    -> Example: 'National Transplant-Registry (NTR)' which does not specify any geographical area. This can be grouped with other similar informal names, such as 'Population Transplant Registry (PTR)' or 'National Registry of Transplantation (NRT)'. However it should not be grouped with a name where the geographical area is specified, such as 'French National Transplant Registry (FNTR)' or 'German National Transplant Registry (GNTR)'.
+- You may encounter registry names that are not really specific to a disease, condition (other than birth, hospital, death, prescription, ...) or exposure, but rather to a vague term such as 'Population Registry' or 'Health Care Registry'. In such cases, you should group them together if they refer to the same geographical area or country, but not with more specific registries.
+    -> Example: 'Danish Health Care Registries (DHCR'), 'Danish Health Data Registries (DKHD)', 'Danish National Birth Registry (DNBR)', 'Danish National Hospital Registry (DNBR)' should be grouped together, but not with 'Danish Cancer Registry (DCR)' or 'National Danish Spine Registry (DaneSpine)'.
+
+<example1>
+Registry 1: "French Thrombotic Microangiopathy Registry"
+Registry 2: "Registry of the French Reference Center for TMA"
+{
+  "explanation": "\"TMA\" means Thrombotic Microangiopathy.",
+  "uncertain": "no",
+  "final_decision": "same"
+}
+</example1>
+
+<example2>
+Registry 1: "Heroin-assisted treatment registry in Switzerland"
+Registry 2: "Norwegian Heroin-assisted Treatment (HAT) registry"
+{
+  "explanation": "Different countries.",
+  "uncertain": "no",
+  "final_decision": "different"
+}
+</example2>
+
+<example3>
+Registry 1: "Norwegian Opioid Agonist Treatment (OAT) cohort study"
+Registry 2: "Norwegian Heroin-assisted Treatment (HAT) registry"
+{
+  "explanation": "Norway has a well established registry structure, HAT being a small subset of OAT, they can be grouped together.",
+  "uncertain": "no",
+  "final_decision": "same"
+}
+</example3>
+
+<example4>
+Registry 1: "National Cardiovascular Data Registry Implantable Cardioverter Defibrillator Registry"
+Registry 2: "NCDR (National Cardiovascular Data Registry) ICD Registry"
+{
+  "explanation": "No country is specified, but it seems to be a well established registry name, probably in the US., so they should be grouped together",
+  "uncertain": "no",
+  "final_decision": "same"
+}
+</example4>
+
+<example5>
+Registry 1: "Danish Lung Cancer Registry (DLCR)"
+Registry 2: "Danish register study of lung cancer patients"
+{
+  "explanation": "Denmark registries are often well connected, so this is likely the same registry of lung cancer, at least it should be grouped together.",
+  "uncertain": "no",
+  "final_decision": "same"
+}
+</example5>
+
+<example6>
+Registry 1: "Danish Chronic Pain Registry"
+Registry 2: "Danish Pain Registry"
+{
+  "explanation": "Chronic pain is a subset of all pain. suffiiently close to be grouped together.",
+  "uncertain": "no",
+  "final_decision": "same"
+}
+</example6>
+
+<example7>
+Registry 1: "IQVIA Medical Research Data - OMOP (IMRD)"
+Registry 2: "Observational Medical Outcomes Partnership Common Data Model (OMOP)"
+{
+  "explanation": "IQVIA is a company that uses OMOP moddel, but they are not the same.",
+  "uncertain": "no",
+  "final_decision": "different"
+}
+
+Registry 1: "{{content_a}}"
+Registry 2: "{{content_b}}"

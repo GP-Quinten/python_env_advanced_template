@@ -1,0 +1,104 @@
+{
+    "Registry name is Official/Unique": {
+        "large_mistral": {
+            "Eval": NaN,
+            "Original": NaN,
+            "New": "Not specified: 92 (40.0%); Yes: 80 (34.8%); No: 58 (25.2%)"
+        },
+        "small_mistral": {
+            "Eval": NaN,
+            "Original": NaN,
+            "New": "Yes: 119 (65.7%); No: 62 (34.3%)"
+        },
+        "gpt4o_openai": {
+            "Eval": NaN,
+            "Original": NaN,
+            "New": "Missing field: 233 (100.0%)"
+        }
+    },
+    "Outcome measure": {
+        "large_mistral": {
+            "Eval": "97.3%",
+            "Original": "98.3%",
+            "New": "100.0%"
+        },
+        "small_mistral": {
+            "Eval": "97.3%",
+            "Original": "98.3%",
+            "New": "100.0%"
+        },
+        "gpt4o_openai": {
+            "Eval": "97.3%",
+            "Original": "99.6%",
+            "New": "100.0%"
+        }
+    },
+    "Registry name": {
+        "large_mistral": {
+            "Eval": "98.2%",
+            "Original": "71.7%",
+            "New": "98.7%"
+        },
+        "small_mistral": {
+            "Eval": "98.2%",
+            "Original": "78.1%",
+            "New": "97.8%"
+        },
+        "gpt4o_openai": {
+            "Eval": "98.2%",
+            "Original": "84.1%",
+            "New": "100.0%"
+        }
+    },
+    "Publication type": {
+        "large_mistral": {
+            "Eval": NaN,
+            "Original": NaN,
+            "New": "Exploratory: 114 (49.6%); Confirmatory: 103 (44.8%); Survey/Review: 13 (5.7%)"
+        },
+        "small_mistral": {
+            "Eval": NaN,
+            "Original": NaN,
+            "New": "Exploratory: 87 (48.1%); Confirmatory: 81 (44.8%); Survey/Review: 13 (7.2%)"
+        },
+        "gpt4o_openai": {
+            "Eval": NaN,
+            "Original": NaN,
+            "New": "Exploratory: 172 (73.8%); Confirmatory: 49 (21.0%); Survey/Review: 12 (5.2%)"
+        }
+    },
+    "Geographical area": {
+        "large_mistral": {
+            "Eval": "72.7%",
+            "Original": "56.2%",
+            "New": "88.7%"
+        },
+        "small_mistral": {
+            "Eval": "72.7%",
+            "Original": "62.2%",
+            "New": "92.3%"
+        },
+        "gpt4o_openai": {
+            "Eval": "72.7%",
+            "Original": "61.8%",
+            "New": "78.1%"
+        }
+    },
+    "Medical condition": {
+        "large_mistral": {
+            "Eval": "95.8%",
+            "Original": "96.6%",
+            "New": "99.1%"
+        },
+        "small_mistral": {
+            "Eval": "95.8%",
+            "Original": "95.7%",
+            "New": "99.4%"
+        },
+        "gpt4o_openai": {
+            "Eval": "95.8%",
+            "Original": "97.9%",
+            "New": "99.6%"
+        }
+    }
+}

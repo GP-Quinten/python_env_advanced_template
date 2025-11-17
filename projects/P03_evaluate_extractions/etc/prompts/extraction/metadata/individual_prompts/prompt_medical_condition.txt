@@ -1,0 +1,108 @@
+CONTEXT:
+You are an expert of real-world clinical studies, especially at litterature review. You are provided with a publication's title and abstract extracted from PubMed or Semantic Scholar, in which use or analysis of patient/medical registry was proven.
+Register and registry are synonyms. 
+
+DEFINITION:
+In a clinical study or its publication, a medical condition is typically defined as a specific disease, disorder, health-related state, or procedure (or even environmental/demographic/lifestyle factors) that is the focus of the research and directly characterizes/defines the studied population or cohort
+
+DIFFERENCES.
+This is to be distinguished from:
+1. Outcome measure / endpoint: Results or effects observed in a study.
+2. Risk factors: Characteristics increasing the likelihood of a condition.
+3. Main variables / descriptive statistics: Primary factors or data summaries analyzed in a study.
+4. Target/study population: The specific group of individuals the study aims to investigate, which may include various medical conditions, demographics, or characteristics.
+5. Exposures (treatments or interventions): Medical treatments, interventions, medications, procedures, or environmental factors the study participants receive or encounter.
+
+TASK:
+Your task is to extract the most precise medical condition (or combination of medical conditions) that was used to define the studied population, using title and abstract (defined by "Text_to_analyze").
+This extraction will be in a small box on a website, so it should be concise and easy to read, among many other publications with similar boxes.
+This extraction will be helpul for a clinical researcher to quickly understand what the study is about, what medical condition and what patients are studied.
+Keep in mind that Intervention, Comparator, Outcome measure are exctracted in other tasks, so you don't need to extract them here.
+
+ADDITIONAL INSTRUCTIONS:
+1. Most of the time, the medical condition will be specified in the title. Of course, it can also be specified in the abstract.
+2. Distinguish the medical condition from the risk factors, endpoint / outcome measure, main variables / descriptive statistics, and target/study population. 
+    * Example: "Patients with Type 2 Diabetes were recruited to study the effects of Metformin on cardiovascular health." 
+        - To be extracted: "Type 2 Diabetes" as it is the medical condition defining the study population.
+        - Not to be extracted: "Metformin" as it is a treatment (exposure/intervention) rather than a medical condition.
+3. Most of the time, you will ave only one medical condition to extract. But in some cases, you may have to extract a combincation of medical conditions with the following format.
+    * Example: "Breast cancer + Diabetes mellitus type 2" 
+4. Output must be concise, ICD-10-style terms. Use Capitalization and commas to separate multiple conditions. 
+5. Use acronyms for famous medical conditions (e.g., COPD for Chronic Obstructive Pulmonary Disease, CAD for Coronary Artery Disease) to make it easier for the user to read.
+6. use umbrella terms (+ details) to group close concepts as one medical condition.
+    * Example 1: "Brain Tumors (astrocytoma, glioblastoma, meningioma)" instead of listing each tumor type separately.
+    * Example 2: "Organ Transplantation (Liver)".
+7. The name of the database(s) / registry(ies) used in the study or in the survey can be a good clue to identify the medical condition, so you can use it in your extraction.
+
+
+Output format of your answer (no extra text):  
+{
+    "Medical condition": STRING
+}
+
+EXAMPLES:
+1. EXAMPLE 1:
+    * Abstract excerpt: "Patients receiving insulin therapy were monitored for diabetic retinopathy progression."
+    GOOD:
+    {
+        "Medical condition": "Diabetes Mellitus (Insulin therapy -> Diabetic Retinopathy)"
+    }
+    * BAD:
+    {
+        "Medical condition": "Insulin therapy"
+    }
+2. EXAMPLE 2:
+    * Abstract excerpt: "Individuals treated with chemotherapy for breast cancer were recruited to study chemotherapy-induced peripheral neuropathy."
+    GOOD:
+    {
+        "Medical condition": "Breast Cancer "
+    }
+    * BAD (Intervention instead of Medical condition):
+    {
+        "Medical condition": "Chemotherapy"
+    }
+3. EXAMPLE 3:
+    * Abstract excerpt: "Patients with elevated LDL cholesterol were followed to assess coronary artery disease development."
+    GOOD:
+    {
+        "Medical condition": "CAD"
+    }
+    * BAD (Risk factor instead of Medical condition):
+    # Elevated LDL Cholesterol will actually be extracted as a risk factor in another task, not here.
+    {
+        "Medical condition": "Elevated LDL Cholesterol"
+    }
+4. EXAMPLE 4:
+    * Abstract excerpt: "Smokers over 50 years of age were enrolled to investigate lung cancer incidence."
+    GOOD:
+    {
+        "Medical condition": "Lung Cancer"
+    }
+    * BAD (Risk factor instead of Medical condition):
+    {
+        "Medical condition": "Smoking"
+    }
+5. EXAMPLE 5:
+    * Abstract excerpt: "Individuals following a Mediterranean diet were observed for cardiovascular health outcomes."
+    GOOD:
+    {
+        "Medical condition": "Cardiovascular Diseases"
+    }
+    * BAD (Lifestyle factor instead of Medical condition):
+    {
+        "Medical condition": "Mediterranean diet"
+    }
+6. EXAMPLE 6:
+    * Abstract excerpt: "Alcohol-dependent individuals were recruited to assess long-term hepatic complications."
+    GOOD:
+    {
+        "Medical condition": "Alcohol Dependence"
+    }
+    * BAD (Lifestyle factor instead of Medical condition):
+    {
+        "Medical condition": "Alcohol consumption"
+    }
+
+
+
+Text_to_analyze:

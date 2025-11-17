@@ -1,0 +1,5 @@
+outs:
+- md5: 6c0a4ee5c8b6612e965abed27f7a60c6
+  size: 104423
+  hash: md5
+  path: test_set_annotated_registry_related.xlsx

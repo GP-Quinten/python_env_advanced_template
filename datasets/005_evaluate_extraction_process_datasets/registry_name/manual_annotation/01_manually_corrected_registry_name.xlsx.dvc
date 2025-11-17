@@ -1,0 +1,5 @@
+outs:
+- md5: 559627bf52903801a77b9ac082bbd7d9
+  size: 222959
+  hash: md5
+  path: 01_manually_corrected_registry_name.xlsx

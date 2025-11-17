@@ -1,0 +1,5 @@
+[core]
+    autostage = true
+    remote = aws_s3_remote
+['remote "aws_s3_remote"']
+    url = s3://s3-common-dev20231214174437248800000002/registry_data_catalog_experiments/

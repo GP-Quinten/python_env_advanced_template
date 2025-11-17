@@ -1,0 +1,5 @@
+outs:
+- md5: 45a93c1c39abde9defe91e62139cd0fa
+  size: 215874
+  hash: md5
+  path: 01_manually_corrected_geographical_area.xlsx

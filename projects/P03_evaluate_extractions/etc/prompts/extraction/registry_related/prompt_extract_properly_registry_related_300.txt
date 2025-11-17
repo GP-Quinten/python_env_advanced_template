@@ -1,0 +1,34 @@
+Context:
+Patient registries are structured, systematic databases collecting standardized, longitudinal, patient-level clinical data for groups defined by diseases, conditions, exposures, or treatments. Administrative registries (e.g., hospital discharge, national cancer, stroke, chronic disease surveillance systems) qualify when they systematically gather patient-level data suitable for epidemiologic or outcomes research. Simple vital-statistics databases (birth or death certificates) and generic claims datasets without longitudinal clinical detail do NOT qualify.
+
+Task:
+Given a publication’s title and abstract (as Text_to_analyze), determine if it is “registry related” by producing only the specified JSON.
+
+Steps:
+1. Identify Data Sources:
+   - List all sources mentioned.
+   - Classify each as “qualifying registry” or “non-qualifying source” based on standardized enrollment, follow-up, and patient-level clinical variables.
+
+2. Assess Usage:
+   - Confirm whether the publication uses or analyzes registry data (e.g., epidemiological outcomes, survival analyses, descriptive studies, data-quality assessments, comparative analyses, linkage studies, registry-based trials).
+   - Mere mentions, background citations, recommendations, surveys, or use of registry-derived tools without analyzing registry data do NOT qualify.
+
+3. Output:
+Produce exactly this JSON, no extra keys or commentary:
+{
+  "step1_reflexion": "<reasoning about sources and classification>",
+  "step2_reflexion": "<reasoning about data use>",
+  "Registry related": "yes" or "no"
+}
+
+Criteria for “yes”:
+- Explicit analysis of patient-level data from qualifying registries.
+- Epidemiological, survival, descriptive, data-quality, comparative, linkage, or registry-based trial analyses.
+
+Criteria for “no”:
+- Pure RCTs without registry involvement.
+- Institutional cohorts without standardized registries.
+- Studies using only vital-statistics.
+- Surveys or opinion pieces without registry-data analysis.
+
+Text_to_analyze:

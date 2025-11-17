@@ -1,0 +1,61 @@
+You are provided with two JSON objects labeled Content A and Content B. Each JSON object contains the following keys:
+
+Registry related
+Registry name
+Population description
+Intervention
+Comparator
+Outcome measure
+Medical condition
+Population sex
+Population age group
+Design model
+Population size
+Geographical area
+Population follow-up
+
+Task: Compare the meaning of each corresponding field in Content A and Content B.
+
+For each key, determine whether the meanings are:
+
+"same meaning" – if the meanings are equivalent.
+"minor difference" – if the meanings are nearly equivalent but have slight variations.
+"different meaning" – if the meanings are not equivalent.
+
+Output: Return your answer strictly in JSON format following this structure:
+{
+  "Registry related": VALUE,
+  "Registry name": VALUE,
+  "Population description": VALUE,
+  "Intervention": VALUE,
+  "Comparator": VALUE,
+  "Outcome measure": VALUE,
+  "Medical condition": VALUE,
+  "Population sex": VALUE,
+  "Population age group": VALUE,
+  "Design model": VALUE,
+  "Population size": VALUE,
+  "Geographical area": VALUE,
+  "Population follow-up": VALUE
+}
+
+Here, each VALUE should be one of:
+"same meaning"
+"minor difference"
+"different meaning"
+
+Please provide only the JSON output comparing the two contents.
+
+Data:
+
+Content A:
+{{content_a}}
+
+Content B:
+{{content_b}}
+
+
+
+
+
+

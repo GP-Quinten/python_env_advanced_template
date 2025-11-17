@@ -1,0 +1,247 @@
+# This Snakefile is part of the P05_refine_dedup project.
+import numpy as np
+
+### ---------------------------------------------- ######
+### --- Workflow 3 - Post-process clusters --- ###
+
+EXP_NAME = "test_1"
+
+STEPS = ["0_dbscan"]#, "1_country", "2_normal", "3_start_noise"]
+REXTRA_TARGETS = [
+    f"data/W03/{EXP_NAME}/extra_evaluate_model_performance/{step}/prediction_results_any_reg.xlsx"
+    for step in STEPS
+] + [
+    f"data/W03/{EXP_NAME}/extra_evaluate_model_performance/{step}/prediction_results_famous_reg.xlsx"
+    for step in STEPS
+] + [
+    f"data/W03/{EXP_NAME}/extra_evaluate_model_performance/{step}/performance_report.json"
+    for step in STEPS
+]
+
+R00_TARGETS = [
+    f"data/W03/{EXP_NAME}/R00_apply_dbscan_clustering/clusters_table.xlsx",
+    f"data/W03/{EXP_NAME}/R00_apply_dbscan_clustering/prediction_results_any_reg.xlsx",
+    f"data/W03/{EXP_NAME}/R00_apply_dbscan_clustering/prediction_results_famous_reg.xlsx",
+    f"data/W03/{EXP_NAME}/R00_apply_dbscan_clustering/performance_report.json",
+]
+
+rule all:
+    input:
+        # Extra
+        REXTRA_TARGETS,
+        # R00
+
+# extra rule that can be used after each clustering refinement step to evaluate the performance at this stage
+rule extra_evaluate_perf:
+    input:
+        script="src/scripts/W03/extra_evaluate_model_performance.py",
+        # evaluation_dataset_any="../../datasets/004_registry_names_deduplication_eval_dataset/eval_dataset_any_official_reg.xlsx",
+        evaluation_dataset_any="data/W01/R03_eval_pairs_similarity_assessment_with_llm/gpt4_1_openai/assessed_pairs_v1.xlsx",
+        # evaluation_dataset_famous="../../datasets/004_registry_names_deduplication_eval_dataset/eval_dataset_famous_official_reg.xlsx",
+        evaluation_dataset_famous="data/W01/R03_eval_pairs_similarity_assessment_with_llm/gpt4_1_openai/famous_close_assessed_pairs_v1.xlsx",
+        clusters_table_xlsx="data/W02/R02_evaluate_model_performance/clusters_table.xlsx", # table of clusters with their size, number of pairs, number of aliases, etc.
+    output:
+        prediction_any_results_xlsx="data/W03/{EXP_NAME}/extra_evaluate_model_performance/{step}/prediction_results_any_reg.xlsx", # table of predictions for eval dataset with any pairs (simply adding a column with the predicted 1 or 0 for each pair)
+        prediction_famous_results_xlsx="data/W03/{EXP_NAME}/extra_evaluate_model_performance/{step}/prediction_results_famous_reg.xlsx", # table of predictions for eval dataset with famous pairs (simply adding a column with the predicted 1 or 0 for each pair)
+        performance_report_json="data/W03/{EXP_NAME}/extra_evaluate_model_performance/{step}/performance_report.json",
+    params:
+        s3_input_embeddings = "registry_data_catalog_experiments/P05_refine_dedup/registry_names_embeddings.parquet",
+        column_cluster="cluster_{step}", # column name in the clusters table that contains the cluster id
+        step="{step}", # step name, used to create output directories
+    log:
+        "logs/W03/{EXP_NAME}/{step}/extra_evaluate_model_performance.log"
+    shell:
+        """
+        PYTHONPATH=$(pwd) python -u {input.script} \\
+            --evaluation_dataset_any {input.evaluation_dataset_any} \\
+            --evaluation_dataset_famous {input.evaluation_dataset_famous} \\
+            --clusters_table_xlsx {input.clusters_table_xlsx} \\
+            --prediction_any_results_xlsx {output.prediction_any_results_xlsx} \\
+            --prediction_famous_results_xlsx {output.prediction_famous_results_xlsx} \\
+            --performance_report_json {output.performance_report_json} \\
+            --s3_input_embeddings {params.s3_input_embeddings} \\
+            --column_cluster {params.column_cluster} \\
+            --step {params.step} \\
+            2>&1 | tee {log}
+        """
+
+# Rule 0: Cluster with method 1 and best combination
+rule R00_apply_dbscan_clustering:
+    input:
+        script="src/scripts/W03/S00_apply_dbscan_clustering.py",
+        # evaluation_dataset_any="../../datasets/004_registry_names_deduplication_eval_dataset/eval_dataset_any_official_reg.xlsx",
+        evaluation_dataset_any="data/W01/R03_eval_pairs_similarity_assessment_with_llm/gpt4_1_openai/assessed_pairs_v1.xlsx",
+        # evaluation_dataset_famous="../../datasets/004_registry_names_deduplication_eval_dataset/eval_dataset_famous_official_reg.xlsx",
+        evaluation_dataset_famous="data/W01/R03_eval_pairs_similarity_assessment_with_llm/gpt4_1_openai/famous_close_assessed_pairs_v1.xlsx",
+        best_config="etc/best_config.json", # this is the best config obtained from the previous step, in json format
+    output:
+        clusters_table_xlsx="data/W03/{EXP_NAME}/R00_apply_dbscan_clustering/clusters_table.xlsx", # table of clusters with their size, number of pairs, number of aliases, etc.
+        prediction_any_results_xlsx="data/W03/{EXP_NAME}/R00_apply_dbscan_clustering/prediction_results_any_reg.xlsx", # table of predictions for eval dataset with any pairs (simply adding a column with the predicted 1 or 0 for each pair)
+        prediction_famous_results_xlsx="data/W03/{EXP_NAME}/R00_apply_dbscan_clustering/prediction_results_famous_reg.xlsx", # table of predictions for eval dataset with famous pairs (simply adding a column with the predicted 1 or 0 for each pair)
+        performance_report_json="data/W03/{EXP_NAME}/R00_apply_dbscan_clustering/performance_report.json",
+    params:
+        s3_input_embeddings = "registry_data_catalog_experiments/P05_refine_dedup/registry_names_embeddings.parquet",
+    log:
+        "logs/W03/{EXP_NAME}/R00_apply_dbscan_clustering.log"
+    shell:
+        """
+        PYTHONPATH=$(pwd) python -u {input.script} \\
+            --evaluation_dataset_any {input.evaluation_dataset_any} \\
+            --evaluation_dataset_famous {input.evaluation_dataset_famous} \\
+            --best_config {input.best_config} \\
+            --clusters_table_xlsx {output.clusters_table_xlsx} \\
+            --prediction_any_results_xlsx {output.prediction_any_results_xlsx} \\
+            --prediction_famous_results_xlsx {output.prediction_famous_results_xlsx} \\
+            --performance_report_json {output.performance_report_json} \\
+            --s3_input_embeddings {params.s3_input_embeddings} \\
+            2>&1 | tee {log}
+        """
+
+# Rule 1: split by country and demonym
+rule R01_split_by_country_and_demonym:
+    input:
+        script="src/scripts/W03/S01_split_by_country_and_demonym.py",
+        clusters_table="data/W03/{EXP_NAME}/R00_apply_dbscan_clustering/clusters_table.xlsx",
+        countries_json="etc/countries.json",
+    output:
+        output_clusters_table_xlsx="data/W03/{EXP_NAME}/R01_split_by_country_and_demonym/clusters_table.xlsx",
+    log:
+        "logs/W03/{EXP_NAME}/R01_split_by_country_and_demonym.log"
+    shell:
+        """
+        PYTHONPATH=$(pwd) python -u {input.script} \\
+            --clusters_table {input.clusters_table} \\
+            --output_clusters_table_xlsx {output.output_clusters_table_xlsx} \\
+            --countries_json {input.countries_json} \\
+            2>&1 | tee {log}
+        """
+
+# Rule 2: split over size clusters of type 'normal' : clusters that don't start with 0_ neither end with '_0'
+rule R02_split_oversized_normal_clusters:
+    input:
+        script="src/scripts/W03/S02_split_oversized_normal_clusters.py",
+        clusters_table="data/W03/{EXP_NAME}/R01_split_by_country_and_demonym/clusters_table.xlsx",
+    output:
+        grid_search_results_xlsx="data/W03/{EXP_NAME}/R02_split_oversized_normal_clusters/grid_search_results.xlsx",
+        output_clusters_table_xlsx="data/W03/{EXP_NAME}/R02_split_oversized_normal_clusters/clusters_table.xlsx",
+    params:
+        N_max = 20 # min size of a cluster to be considered as oversized
+        eps_values = np.arange(0.21, 0.27, 0.01).tolist(), # range of eps values to try for splitting
+    log:
+        "logs/W03/{EXP_NAME}/R02_split_oversized_normal_clusters.log"
+    shell:
+        """
+        PYTHONPATH=$(pwd) python -u {input.script} \\
+            --clusters_table {input.clusters_table} \\
+            --output_clusters_table_xlsx {output.output_clusters_table_xlsx} \\
+            --grid_search_results_xlsx {output.grid_search_results_xlsx} \\
+            --N_max {params.N_max} \\
+            --eps_values {params.eps_values} \\
+            2>&1 | tee {log}
+        """
+
+# Rule 3: split over size clusters of type 'start_noise' : clusters that start with 0_
+rule R03_split_oversized_start_noise_clusters:
+    input:
+        script="src/scripts/W03/S03_split_oversized_start_noise_clusters.py",
+        clusters_table="data/W03/{EXP_NAME}/R02_split_oversized_normal_clusters/clusters_table.xlsx",
+    output:
+        grid_search_results_xlsx="data/W03/{EXP_NAME}/R03_split_oversized_start_noise_clusters/grid_search_results.xlsx",
+        output_clusters_table_xlsx="data/W03/{EXP_NAME}/R03_split_oversized_start_noise_clusters/clusters_table.xlsx",
+    params:
+        N_max = 3, # min size of a cluster to be considered as oversized
+        eps_values = np.arange(0.32, 0.37, 0.01).tolist(), # range of eps values to try for splitting
+    log:
+        "logs/W03/{EXP_NAME}/R03_split_oversized_start_noise_clusters.log"
+    shell:
+        """
+        PYTHONPATH=$(pwd) python -u {input.script} \\
+            --clusters_table {input.clusters_table} \\
+            --output_clusters_table_xlsx {output.output_clusters_table_xlsx} \\
+            --grid_search_results_xlsx {output.grid_search_results_xlsx} \\
+            --N_max {params.N_max} \\
+            --eps_values {params.eps_values} \\
+            2>&1 | tee {log}
+        """
+
+# Rule R04: evaluate transformation rate of EMA registries
+# decompose in 3 steps
+# R0401: prepare nearest_neighbors for EMA registries
+rule R0401_EMA_TR_prepare_nearest_neighbors:
+    input:
+        script="src/scripts/W03/S0401_prepare_nearest_neighbors.py",
+        clusters_table="data/W03/{EXP_NAME}/R03_split_oversized_start_noise_clusters/clusters_table.xlsx",
+        # s3_input_embeddings = "registry_data_catalog_experiments/P05_refine_dedup/registry_names_embeddings.parquet",
+    output:
+        nearest_neighbors_json="data/W03/{EXP_NAME}/R04_evaluate_transformation_rate/nearest_neighbors.json",
+    params:
+        max_epsilon=0.4, # maximum epsilon value to consider for nearest neighbors
+        max_neighbors=5, # maximum number of nearest neighbors to consider
+    log:
+        "logs/W03/{EXP_NAME}/R04_evaluate_transformation_rate/R0401_prepare_nearest_neighbors.log"
+    shell:
+        """
+        PYTHONPATH=$(pwd) python -u {input.script} \\
+            --clusters_table {input.clusters_table} \\
+            --nearest_neighbors_json {output.nearest_neighbors_json} \\
+            --max_epsilon {params.max_epsilon} \\
+            --max_neighbors {params.max_neighbors} \\
+            2>&1 | tee {log}
+        """
+
+# R0402: find best neighbor with LLM as a judge
+rule R0402_find_best_neighbor_w_llm:
+    input:
+        script="src/scripts/W03/S0402_find_best_neighbor_w_llm.py",
+        nearest_neighbors_json="data/W03/{EXP_NAME}/R04_evaluate_transformation_rate/nearest_neighbors.json",
+        # s3_input_embeddings = "registry_data_catalog_experiments/P05_refine_dedup/registry_names_embeddings.parquet",
+        model_a_config = "etc/configs/gpt4_1_openai_config.json",
+        model_b_config = "etc/configs/gpt4o_openai_config.json",
+        prompt_txt = "etc/prompts/refinement/prompt_find_best_alias.txt",
+    output:
+        raw_llm_output_json="data/W03/{EXP_NAME}/R04_evaluate_transformation_rate/raw_llm_output.json", # raw output from the LLM, without any parsin, and with the prompt
+        table_of_comparison_xlsx="data/W03/{EXP_NAME}/R04_evaluate_transformation_rate/table_of_comparison.xlsx", # compare results from model a and from model b
+    log:
+        "logs/W03/{EXP_NAME}/R04_evaluate_transformation_rate/R0402_find_best_neighbor_w_llm.log"
+    shell:
+        """
+        PYTHONPATH=$(pwd) python -u {input.script} \\
+            --nearest_neighbors_json {input.nearest_neighbors_json} \\
+            --raw_llm_output_json {output.raw_llm_output_json} \\
+            --table_of_comparison_xlsx {output.table_of_comparison_xlsx} \\
+            --model_a_config {input.model_a_config} \\
+            --model_b_config {input.model_b_config} \\
+            --prompt_txt {input.prompt_txt} \\
+            2>&1 | tee {log}
+        """
+
+# R0403: post_process and evaluate transformation rate
+rule R0403_post_processing_and_eval_transfo_rate:
+    input:
+        script="src/scripts/W03/S0403_post_processing_and_eval_transfo_rate.py",
+        annotated_table_of_comparison="data/W03/{EXP_NAME}/R04_evaluate_transformation_rate/table_of_comparison.xlsx", # annotated table of comparison with the best neighbor for each EMA registry
+        clusters_table="data/W03/{EXP_NAME}/R03_split_oversized_start_noise_clusters/clusters_table.xlsx", # reload clusters table to retrieve the cluster id
+    output:
+        # transformation_rate_json="data/W03/{EXP_NAME}/R04_evaluate_transformation_rate/transformation_rate.json", # json with the transformation rate and the number of transformed EMA registries
+        ema_registries_transfo_xlsx="data/W03/{EXP_NAME}/R04_evaluate_transformation_rate/ema_registries_transfo.xlsx", # table of transformed EMA registries with their aliases and the number of aliases
+    log:
+        "logs/W03/{EXP_NAME}/R04_evaluate_transformation_rate/R0403_post_processing_and_eval_transfo_rate.log" # log here the transformation rate and the number of transformed EMA registries, and the number of ema registries landing into the same cluster, and the number of clusters with more than 1 ema registry
+    shell:
+        """
+        PYTHONPATH=$(pwd) python -u {input.script} \\
+            --annotated_table_of_comparison {input.annotated_table_of_comparison} \\
+            --clusters_table {input.clusters_table} \\
+            --ema_registries_transfo_xlsx {output.ema_registries_transfo_xlsx} \\
+            2>&1 | tee {log}
+        """
+
+# Rule R05: evaluate aliases quality of transformed EMA registries
+# decompose in 3 steps
+# R0501: prepare aliases for transformed EMA registries
+# R0502: evaluate aliases quality with LLM as a judge
+# R0503: post_process and evaluate aliases quality 
+
+# Rule 6: Generate 2 final datasets:
+# First one is 'consolidated_registries' that contains all the consolidated registries with 'RegID', 'name'(consolidated name), 'total_aliases', 'total_publis'
+# Second one is 'scattered_registries' that contains all the scattered registries with 'Alias_id', 'RegID', 'alias_name'(scattered name), 'total_publis'
+

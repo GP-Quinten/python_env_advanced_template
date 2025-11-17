@@ -1,0 +1,215 @@
+##############################################
+# R02 - Build Registries Dataset
+##############################################
+
+# Step A: Load registries (S3 + EMA JSON) into a raw dataset
+rule R02a_load_registries:
+    input:
+        ema_registries="../../datasets/007_search_engine_datasets/999_ema_registires.json",
+        script="src/scripts/s02a_load_registries.py"
+    output:
+        raw_registries="data/R02a_load_registries/raw_registries.json",
+        output_dir=directory("data/R02a_load_registries")
+    shell:
+        """
+        python {input.script} \
+            --ema_registries {input.ema_registries} \
+            --output_registries {output.raw_registries} \
+            --output_dir {output.output_dir}
+        """
+
+# Step B: Clean & filter registries (apply min_occurrences, normalize locations, etc.)
+rule R02b_prepare_registries:
+    input:
+        raw_registries="data/R02a_load_registries/raw_registries.json",
+        script="src/scripts/s02b_prepare_registries.py"
+    output:
+        registries="data/R02b_prepare_registries/registries.json",
+        output_dir=directory("data/R02b_prepare_registries")
+    params:
+        min_occurrences=3
+    shell:
+        """
+        python {input.script} \
+            --input_registries {input.raw_registries} \
+            --output_registries {output.registries} \
+            --min_occurrences {params.min_occurrences} \
+            --output_dir {output.output_dir}
+        """
+
+
+##############################################
+# R04 - Process First Annotations
+##############################################
+
+# Clean and normalize queries + annotations from the 1st round
+rule R04_process_first_annotations:
+    input:
+        queries_xlsx="../../datasets/007_search_engine_datasets/1st_annotations/queries_JP20250718.xlsx",
+        annotations_xlsx="../../datasets/007_search_engine_datasets/1st_annotations/annotations_SZ20250721.xlsx",
+        script="src/scripts/s04_process_first_annotations.py"
+    output:
+        queries_json="data/R04_process_first_annotations/queries.json",
+        annotations_json="data/R04_process_first_annotations/annotations.json",
+        output_dir=directory("data/R04_process_first_annotations")
+    shell:
+        """
+        python {input.script} \
+            --queries_xlsx {input.queries_xlsx} \
+            --annotations_xlsx {input.annotations_xlsx} \
+            --output_queries {output.queries_json} \
+            --output_annotations {output.annotations_json} \
+            --output_dir {output.output_dir}
+        """
+
+
+##############################################
+# R05 - Process Second Annotations
+##############################################
+
+# Clean and normalize queries + annotations from the 2nd round
+rule R05_process_second_annotations:
+    input:
+        queries_xlsx="../../datasets/007_search_engine_datasets/2nd_annotations/queries_GH20250725.xlsx",
+        annotations_xlsx="../../datasets/007_search_engine_datasets/2nd_annotations/annotations_RR20250804.xlsx",
+        script="src/scripts/s05_process_second_annotations.py"
+    output:
+        queries_json="data/R05_process_second_annotations/queries.json",
+        annotations_json="data/R05_process_second_annotations/annotations.json",
+        output_dir=directory("data/R05_process_second_annotations")
+    shell:
+        """
+        python {input.script} \
+            --queries_xlsx {input.queries_xlsx} \
+            --annotations_xlsx {input.annotations_xlsx} \
+            --output_queries {output.queries_json} \
+            --output_annotations {output.annotations_json} \
+            --output_dir {output.output_dir}
+        """
+
+
+##############################################
+# R01 - Benchmark Search Engines
+##############################################
+# Run benchmarking pipeline (indexing → searching → evaluating)
+# Uses registries (R02b) + queries & annotations (R05)
+rule R01_benchmark_search_engines:
+    input:
+        path_registries="data/R02b_prepare_registries/registries.json",
+        path_queries="data/R05_process_second_annotations/queries.json",
+        path_annotations="data/R05_process_second_annotations/annotations.json",
+        script="src/scripts/s01_main_benchmarking.py",
+        config="src/p06_search_engine/config.py"
+    params:
+        thresholding_n_ranks=50,
+        thresholding_n_relevances=100,
+        output_dir="data/R01_benchmark_search_engines",
+        n_combinations=-1,
+        n_jobs=-1  # number of parallel jobs, -1 means all available cores
+    output:
+        best_params="data/R01_benchmark_search_engines/best_params.json",
+    shell:
+        """
+        python {input.script} \
+            --path_queries {input.path_queries} \
+            --path_registries {input.path_registries} \
+            --path_annotations {input.path_annotations} \
+            --thresholding_n_ranks {params.thresholding_n_ranks} \
+            --thresholding_n_relevances {params.thresholding_n_relevances} \
+            --output_dir {params.output_dir} \
+            --n_combinations {params.n_combinations} \
+            --n_jobs {params.n_jobs} \
+            --reuse # reuse existing search results if available, put --no-reuse to force re-computation
+        """
+
+
+##############################################
+# R03 - Fetch EMA Results
+##############################################
+
+# Query EMA catalogue and store raw annotations (3rd round)
+rule R03_fetch_ema_results:
+    input:
+        script="src/scripts/s03_fetch_ema_results.py",
+        queries_json="../../datasets/007_search_engine_datasets/3rd_annotations/queries_BK20250822.json"
+    params:
+        output_dir=directory("../../datasets/007_search_engine_datasets/3rd_annotations"), 
+    output:
+        output_results_json="../../datasets/007_search_engine_datasets/3rd_annotations/annotations_EMA.json",
+    shell:
+        """
+        python {input.script} \
+            --queries_json {input.queries_json} \
+            --output_results_json {output.output_results_json} \
+            --output_dir {params.output_dir}
+        """
+
+
+##############################################
+# R06 - Reporting
+##############################################
+
+rule R06_reporting:
+    input:
+        benchmarking="data/R01_benchmark_search_engines/best_params.json",
+        script="src/scripts/s06_reporting.py",
+        registries="data/R02b_prepare_registries/registries.json",
+        queries="data/R05_process_second_annotations/queries.json",
+        annotations="data/R05_process_second_annotations/annotations.json",
+        searches_dir="data/R01_benchmark_search_engines/searches"
+    output:
+        output_dir=directory("data/R06_reporting"),
+        report_txt="data/R06_reporting/report.txt"
+    shell:
+        """
+        python {input.script} \
+          --benchmarking {input.benchmarking} \
+          --registries {input.registries} \
+          --queries {input.queries} \
+          --annotations {input.annotations} \
+          --searches_dir {input.searches_dir} \
+          --output_dir {output.output_dir} \
+          --report_txt {output.report_txt}
+        """
+
+##############################################
+# R07 - Inference
+##############################################
+
+rule R07_inference:
+    input:
+        path_queries="data/R05_process_second_annotations/queries.json", 
+        path_registries="data/R02b_prepare_registries/registries.json", 
+        path_params="data/R01_benchmark_search_engines/best_params.json", 
+        script="src/scripts/s07_inference.py", 
+    output:
+        results_json="data/R07_inference/inference_results.json"
+    shell:
+        """
+        python {input.script} \
+          --path_queries {input.path_queries} \
+          --path_registries {input.path_registries} \
+          --path_params {input.path_params} \
+          --results_json {output.results_json} \
+        """
+
+##############################################
+# R08 - Inference EMA
+##############################################
+
+rule R08_inference_ema:
+    input:
+        path_queries="../../datasets/007_search_engine_datasets/3rd_annotations/queries_BK20250822.json", 
+        path_registries="data/R02b_prepare_registries/registries.json",
+        path_params="data/R01_benchmark_search_engines/best_params.json", 
+        script="src/scripts/s07_inference.py", 
+    output:
+        results_json="data/R08_inference_ema/inference_ema_results.json"
+    shell:
+        """
+        python {input.script} \
+          --path_queries {input.path_queries} \
+          --path_registries {input.path_registries} \
+          --path_params {input.path_params} \
+          --results_json {output.results_json} \
+        """

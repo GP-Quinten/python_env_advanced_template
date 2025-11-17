@@ -1,0 +1,5 @@
+outs:
+- md5: 60ae90be33d67cc8d7316c80cd6b852d
+  size: 268866
+  hash: md5
+  path: 01_manually_corrected_outcome_measure.xlsx

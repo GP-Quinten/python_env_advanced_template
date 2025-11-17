@@ -1,0 +1,123 @@
+# This Snakefile is part of the P05_refine_dedup project.
+
+LLM_JUDGE_MODEL = "gpt4_1_openai"  # or "gpt4o_openai" or "o3_openai"
+rule all:
+    input:
+        # R01
+        "data/W01/R01_embed_registry_names/raw_registry_names_embeddings.parquet",
+        # # R02
+        # "data/W01/R02_select_pairs_for_eval_dataset/final_selected_pairs.xlsx",
+        # # R03
+        # f"data/W01/R03_eval_pairs_similarity_assessment_with_llm/{LLM_JUDGE_MODEL}/famous_assessed_pairs.xlsx",
+        # # R03bis
+        # f"data/W01/R03_eval_pairs_similarity_assessment_with_llm/{LLM_JUDGE_MODEL}/any_assessed_pairs.xlsx",
+        # # R04
+        # "data/W01/R04_embed_ema_registry_names/ema_registry_names_embeddings.parquet",
+
+### ---------------------------------------------- ######
+### --- Workflow 1 - Create evaluation dataset --- ###
+
+# First, embed registry names using Mistral embeddings.
+rule R01_embed_registry_names:
+    input:
+        script="src/scripts/W01/S01_embed_registry_names.py",
+    output:
+        local_output_embeddings_parquet="data/W01/R01_embed_registry_names/raw_registry_names_embeddings.parquet",
+    params:
+        s3_input_registries_dir = "registry_data_catalog_experiments/P04_official_reg_db_creation/datasets_versions/update_medical_condition/registry_data",
+        s3_output_embeddings_parquet = "registry_data_catalog_experiments/P05_refine_dedup/raw_registry_names_embeddings.parquet",
+    log:
+        "logs/W01/R01_embed_registry_names.log"
+    shell:
+        """
+        PYTHONPATH=$(pwd) python -u {input.script} \\
+            --local_output_embeddings_parquet {output.local_output_embeddings_parquet} \\
+            --s3_input_registries_dir {params.s3_input_registries_dir} \\
+            --s3_output_embeddings_parquet {params.s3_output_embeddings_parquet} \\
+            2>&1 | tee {log}
+        """
+
+# select pairs of registry names for the evaluation dataset
+rule R02_select_pairs_for_eval_dataset:
+    input:
+        script="src/scripts/W01/S02_select_pairs_for_eval_dataset.py",
+    output:
+        output_pairs_xlsx="data/W01/R02_select_pairs_for_eval_dataset/final_selected_pairs.xlsx",
+    params:
+        s3_input_embeddings_parquet = "registry_data_catalog_experiments/P05_refine_dedup/registry_names_embeddings.parquet",
+        seed = 42,
+    log:
+        "logs/W01/R02_select_pairs_for_eval_dataset.log"
+    shell:
+        """
+        PYTHONPATH=$(pwd) python -u {input.script} \\
+            --s3_input_embeddings_parquet {params.s3_input_embeddings_parquet} \\
+            --output_pairs_xlsx {output.output_pairs_xlsx} \\
+            --seed {params.seed} \\
+            2>&1 | tee {log}
+        """
+
+
+rule R03_eval_pairs_similarity_assessment_with_llm:
+    input:
+        script="src/scripts/W01/S03_eval_pairs_similarity_assessment_with_llm.py",
+        # input_pairs_xlsx="data/W01/R02_select_pairs_for_eval_dataset/selected_pairs.xlsx",
+        input_pairs_xlsx="data/W01/R02_select_pairs_for_eval_dataset/selected_famous_close_pairs.xlsx",
+        prompt_txt = "etc/prompts/prompt_compare_registry_names_v2.txt",
+        model_config = "etc/configs/{LLM_JUDGE_MODEL}_config.json",  # try
+    output:
+        output_assessed_pairs_xlsx="data/W01/R03_eval_pairs_similarity_assessment_with_llm/{LLM_JUDGE_MODEL}/famous_assessed_pairs.xlsx",
+    log:
+        log="logs/W01/R03_eval_pairs_similarity_assessment_with_llm/{LLM_JUDGE_MODEL}.log"
+    shell:
+        """
+        PYTHONPATH=$(pwd) python -u {input.script} \\
+            --input_pairs_xlsx {input.input_pairs_xlsx} \\
+            --prompt_txt {input.prompt_txt} \\
+            --model_config {input.model_config} \\
+            --output_assessed_pairs_xlsx {output.output_assessed_pairs_xlsx} \\
+            2>&1 | tee {log}
+        """
+
+rule R03bis_eval_pairs_similarity_assessment_with_llm:
+    input:
+        script="src/scripts/W01/S03_eval_pairs_similarity_assessment_with_llm.py",
+        # input_pairs_xlsx="data/W01/R02_select_pairs_for_eval_dataset/selected_pairs.xlsx",
+        input_pairs_xlsx="data/W01/R02_select_pairs_for_eval_dataset/new_selected_pairs.xlsx",
+        prompt_txt = "etc/prompts/prompt_compare_registry_names_v2.txt",
+        model_config = "etc/configs/{LLM_JUDGE_MODEL}_config.json",  # try
+    output:
+        output_assessed_pairs_xlsx="data/W01/R03_eval_pairs_similarity_assessment_with_llm/{LLM_JUDGE_MODEL}/any_assessed_pairs.xlsx",
+    log:
+        log="logs/W01/R03bis_eval_pairs_similarity_assessment_with_llm/{LLM_JUDGE_MODEL}.log"
+    shell:
+        """
+        PYTHONPATH=$(pwd) python -u {input.script} \\
+            --input_pairs_xlsx {input.input_pairs_xlsx} \\
+            --prompt_txt {input.prompt_txt} \\
+            --model_config {input.model_config} \\
+            --output_assessed_pairs_xlsx {output.output_assessed_pairs_xlsx} \\
+            2>&1 | tee {log}
+        """
+
+# Finally push to dvc "../../datasets/004_registry_names_deduplication_eval_dataset/official_reg_eval_dataset.xlsx"
+
+# Rule R04 is same as R01, but embedding ema registries
+rule R04_embed_ema_registry_names:
+    input:
+        script="src/scripts/W01/S04_embed_ema_registry_names.py",
+        input_ema_reg_json = "../../datasets/006_bis_registry_names_datasets/ema_reg_data/ema_registries_dataset.json",
+    output:
+        local_output_embeddings_parquet="data/W01/R04_embed_ema_registry_names/ema_registry_names_embeddings.parquet",
+    params:
+        s3_output_embeddings_parquet = "registry_data_catalog_experiments/P05_refine_dedup/ema_registry_names_embeddings.parquet",
+    log:
+        "logs/W01/R04_embed_ema_registry_names.log"
+    shell:
+        """
+        PYTHONPATH=$(pwd) python -u {input.script} \\
+            --input_ema_reg_json {input.input_ema_reg_json} \\
+            --local_output_embeddings_parquet {output.local_output_embeddings_parquet} \\
+            --s3_output_embeddings_parquet {params.s3_output_embeddings_parquet} \\
+            2>&1 | tee {log}
+        """

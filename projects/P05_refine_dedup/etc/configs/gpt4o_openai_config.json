@@ -1,0 +1,9 @@
+{
+    "model": "gpt-4o",
+    "temperature": 0.3,
+    "max_tokens": 1024,
+    "random_seed": 42,
+    "response_format": {
+        "type": "json_object"
+    }
+}

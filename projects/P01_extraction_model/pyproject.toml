@@ -1,0 +1,36 @@
+[tool.poetry]
+name = "p01-extraction-model"
+version = "0.1.0"
+description = ""
+authors = ["Boris Kopin <b.kopin@quinten-france.com>"]
+readme = "README.md"
+packages = [
+    { include = "p01_extraction_model", from = "src" },
+    { include = "scripts", from = "src" },
+    { include = "views", from = "src" }
+]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+pandas = "^2.2.3"
+tqdm = "^4.67.1"
+openpyxl = "^3.1.5"
+mistralai = "^1.5.0"
+mistral-common = "^1.5.2"
+python-dotenv = "^1.0.1"
+dvc = "^3.59.0"
+openai = "^1.61.1"
+matplotlib = "^3.10.0"
+weaviate-client = "^4.11.0"
+snakemake = "^8.28.0"
+dvc-s3 = "^3.2.0"
+streamlit = "^1.42.2"
+sentence-transformers = "^3.4.1"
+
+registry-catalog-data-science = {path = "../..", develop = true}
+tiktoken = "^0.9.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

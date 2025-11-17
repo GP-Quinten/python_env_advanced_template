@@ -1,0 +1,5 @@
+outs:
+- md5: 0fbc82280bff7d3ee381980ad37f8d2c
+  size: 14352
+  hash: md5
+  path: 01_annotated_ghinwa_incorrect_registry_name.json

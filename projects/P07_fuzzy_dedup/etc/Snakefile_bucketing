@@ -1,0 +1,176 @@
+##############################################
+# Snakefile for LSH bucketing pipeline
+##############################################
+
+# --- Step 1: Grid search on annotated dataset ---
+rule R20_find_bucket_params:
+    input:
+        script="src/scripts/S20_1_find_bucket_params.py",
+        annotated_json="data/R10_clean_raw_dataset/clean_dataset.json"
+    output:
+        metrics="data/R20_grid_search/metrics.csv",
+        best_params="data/R20_grid_search/best_params.json",
+        summary="data/R20_grid_search/summary.json",
+        recall_vs_pairs="data/R20_grid_search/recall_vs_pairs.png",
+        recall_vs_reduction="data/R20_grid_search/recall_vs_reduction.png",
+        heatmap="data/R20_grid_search/heatmap_recall.png",
+        recall_by_ngram="data/R20_grid_search/recall_by_ngram.png",
+        report="data/R20_grid_search/report.md"
+    params:
+        output_dir="data/R20_grid_search",
+        seed=13
+    shell:
+        r"""
+        python {input.script} \
+          --annotated_json {input.annotated_json} \
+          --output_dir {params.output_dir} \
+          --seed {params.seed}
+        """
+
+# --- Step 2: Apply best params on unlabeled dataset ---
+rule R20_bucket_unlabeled_dataset:
+    input:
+        script="src/scripts/S20_2_bucket_unlabeled_dataset.py",
+        dataset_json="data/R01_load_registry_dataset/registry_dataset.json",
+        best_params="data/R20_grid_search/best_params.json"
+    output:
+        pairs="data/R20_bucket_unlabeled_dataset/candidate_pairs.parquet",
+        sample="data/R20_bucket_unlabeled_dataset/candidate_pairs_sample.json",
+        metadata="data/R20_bucket_unlabeled_dataset/metadata.json"
+    params:
+        output_dir="data/R20_bucket_unlabeled_dataset"
+    shell:
+        r"""
+        python {input.script} \
+          --dataset_json {input.dataset_json} \
+          --output_dir {params.output_dir} \
+          --best_params_json {input.best_params}
+        """
+
+# --- New Step: Measure semantic bucketing using Weaviate/local neighbors ---
+rule R20_2_measure_semantic_bucketing:
+    input:
+        script="src/scripts/S20_2_measure_semantic_bucketing.py",
+        annotated_json="data/R10_clean_raw_dataset/clean_dataset.json"
+    output:
+        pairs="data/R20_measure_semantic_bucketing/candidate_pairs.parquet",
+        metrics="data/R20_measure_semantic_bucketing/metrics.json",
+        metadata="data/R20_measure_semantic_bucketing/metadata.json"
+    params:
+        output_dir="data/R20_measure_semantic_bucketing",
+        topk=50,
+        seed=13
+    shell:
+        r"""
+        python {input.script} \
+          --annotated_json {input.annotated_json} \
+          --output_dir {params.output_dir} \
+          --topk {params.topk} \
+          --seed {params.seed}
+        """
+
+# --- New Step: Prefill Weaviate with registries extracted from annotated dataset ---
+rule R20_2_1_prefill_weaviate:
+    input:
+        script="src/scripts/S20_2_1_prefill_weaviate.py",
+        annotated_json="data/R10_clean_raw_dataset/clean_dataset.json"
+    output:
+        metadata="data/R20_prefill_weaviate/metadata.json"
+    params:
+        output_dir="data/R20_prefill_weaviate",
+        collection_name="RegistryCollection"
+    shell:
+        r"""
+        python {input.script} \
+          --annotated_json {input.annotated_json} \
+          --output_dir {params.output_dir} \
+          --collection_name {params.collection_name}
+        """
+
+# --- New Step: Measure semantic bucketing using Weaviate for registry_unique.json ---
+rule R20_2_2_measure_weaviate:
+    input:
+        script="src/scripts/S20_2_measure_semantic_bucketing.py",
+        registry_json="data/R20_prefill_weaviate/registry_unique.json",
+        annotated_with_hash_json="data/R20_prefill_weaviate/annotated_with_pair_hash.json"
+    output:
+        pairs="data/R20_measure_weaviate/semantic_candidate_pairs.json"
+    params:
+        output_dir="data/R20_measure_weaviate",
+        collection_name="RegistryCollection",
+        auto_limit=3
+    shell:
+        r"""
+        python {input.script} \
+          --registry_json {input.registry_json} \
+          --annotated_with_hash_json {input.annotated_with_hash_json} \
+          --output_dir {params.output_dir} \
+          --collection_name {params.collection_name} \
+          --auto_limit {params.auto_limit}
+        """
+
+# --- Final target: candidate pairs parquet ---
+# rule all:
+#     input:
+#         "data/R20_bucket_unlabeled_dataset/candidate_pairs.parquet"
+
+
+# ##############################################
+# # Snakefile: LSH bucketing with param grid
+# ##############################################
+
+# import itertools
+
+# # --- Define grid of parameters ---
+# bands_vals          = [12, 16, 20, 24, 28, 32]
+# num_perm_vals       = [128, 192]
+# ngram_vals          = [3, 4, 5]
+# max_block_size_vals = [50, 80, 200]
+# min_block_size_vals = [2, 3, 4]
+
+# # --- Final targets (generic parquet per param-set subdir) ---
+# param_grid = list(itertools.product(
+#     ngram_vals,
+#     bands_vals,
+#     num_perm_vals,
+#     max_block_size_vals,
+#     min_block_size_vals
+# ))
+# # Sort by ngram, then bands
+# param_grid_sorted = sorted(param_grid, key=lambda x: (x[0], x[1]))
+
+# rule all:
+#     input:
+#         expand(
+#             "data/R20_bucket_unlabeled_dataset__grid/ngram{ngram}_perm{num_perm}_bands{bands}_max{max_block_size}_min{min_block_size}/candidate_pairs.parquet",
+#             ngram=[x[0] for x in param_grid_sorted],
+#             bands=[x[1] for x in param_grid_sorted],
+#             num_perm=[x[2] for x in param_grid_sorted],
+#             max_block_size=[x[3] for x in param_grid_sorted],
+#             min_block_size=[x[4] for x in param_grid_sorted]
+#         )
+
+# # --- Bucketing rule ---
+# rule R20_bucket_unlabeled_dataset:
+#     input:
+#         script="src/scripts/S20_2_bucket_unlabeled_dataset.py",
+#         dataset_json="data/R01_load_registry_dataset/registry_dataset.json"
+#     params:
+#         base_dir="data/R20_bucket_unlabeled_dataset__grid",
+#         seed=13
+#     output:
+#         "data/R20_bucket_unlabeled_dataset__grid/ngram{ngram}_perm{num_perm}_bands{bands}_max{max_block_size}_min{min_block_size}/candidate_pairs.parquet"
+#     shell:
+#         r"""
+#         mkdir -p $(dirname {output})
+
+#         python {input.script} \
+#           --dataset_json {input.dataset_json} \
+#           --output_dir $(dirname {output}) \
+#           --ngram {wildcards.ngram} \
+#           --num_perm {wildcards.num_perm} \
+#           --bands {wildcards.bands} \
+#           --seed {params.seed} \
+#           --min_block_size {wildcards.min_block_size} \
+#           --max_block_size {wildcards.max_block_size}
+#         """

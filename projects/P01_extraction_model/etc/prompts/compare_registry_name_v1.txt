@@ -1,0 +1,35 @@
+You are provided with two strings representing the names of medical registries. Your task is to determine whether these two registry names refer to the same registry or to different registries. In making your decision, consider variations such as abbreviations, punctuation, minor wording differences, acronyms, and differences in context that may indicate they refer to the same entity.
+
+Output your answer as a JSON object with the following keys:
+- "explanation": A brief explanation of your reasoning.
+- "final_decision": Either "same" or "different".
+
+<example1>
+Registry 1: "National Cancer Registry"
+Registry 2: "Natl. Cancer Registry"
+{
+  "explanation": "The abbreviations and similar wording indicate that both names refer to the same registry.",
+  "final_decision": "same"
+}
+</example1>
+
+<example2>
+Registry 1: "NCI Registry"
+Registry 2: "National Cancer Institute Registry"
+{
+  "explanation": "The use of the acronym 'NCI' and its expanded form indicates that both names refer to the same registry.",
+  "final_decision": "same"
+}
+</example2>
+
+<example3>
+Registry 1: "National Birth Registry"
+Registry 2: "National Cancer Registry"
+{
+  "explanation": "The different focus in the registry names ('Birth' vs. 'Cancer') indicates that these names refer to different registries.",
+  "final_decision": "different"
+}
+</example3>
+
+Registry 1: "{{content_a}}"
+Registry 2: "{{content_b}}"

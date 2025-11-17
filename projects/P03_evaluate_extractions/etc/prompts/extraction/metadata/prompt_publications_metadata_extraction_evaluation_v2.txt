@@ -1,0 +1,141 @@
+Context: Patient registries are organised systems that use observational methods to collect uniform data on a population defined by a particular disease, condition or exposure, and that is followed over time. You need to extract information from medical articles to better characterize patient registries. A paragraph refers to a specific patient registry if it describes one, or if it describes a study based on data from a specific patient registry.  
+Register and registry are synonyms.
+
+Given the paragraph below (defined by "Text_to_analyze") which concatenates title and abstract of medical publications do the following tasks:  
+- Extract the name of the patient registry if it is given, if not, output "Not specified".  
+- Extract the PICO. The PICO stands for Population description, Intervention, Comparator, Outcome measure.  
+- Extract medical condition(s) of the studied population.  
+- Extract sex of the studied population.  
+- Extract age group of the studied population.  
+- Classify the design model of the study performed in the paragraph.  
+- Extract the population size.  
+- Extract as accurately as possible the geographical area of the registry used in the study, or the geographical area of the patients from which data is collected.  
+- Population follow-up duration.  
+
+The definitions are as follows:  
+- **Population description:** refers to the group of individuals or subjects that researchers target for inclusion in the study based on specific criteria. This group is chosen to represent the larger body of people to whom the results will be applicable.  
+- **Intervention:** a specific treatment or set of actions administered to participants. List all if several.  
+- **Comparator:** the reference group used to evaluate the intervention or exposure. List all if several.  
+- **Outcome measure:** the specific variable(s) the study measures to judge effect, safety, or prognosis (e.g., all-cause mortality, HbA1c, pain score). These are usually called outcomes or end-points and are always nouns or noun phrases, never whole sentences.  
+- **Medical condition:** Clear and precise ICD-10-level medical conditions directly characterizing the studied population or cohort. Conditions must reflect diagnoses or medically recognized terms. Include medical procedures, treatments, interventions, or symptoms only when they explicitly constitute key inclusion criteria defining the studied cohort. Avoid including general mentions of complications or incidental secondary conditions unless they explicitly form part of the primary study criteria. Omit risk factors, exposures, lifestyle factors, or unrelated conditions unless clearly central to defining the target population. Output must be concise, ICD-10-style terms separated by commas.  
+- **Population sex:** one or both of "Male", "Female".  
+- **Population age group:** one or more of "Child", "Adult", "Older Adult".  
+- **Design model:** exactly one of the classes below:  
+    * Randomized Control Trial (RCT)  
+    * Cohort studies  
+    * Case-control studies  
+    * Case-only studies  
+    * Cross-sectional studies  
+    * Cost studies  
+    * Not specified  
+- **Population size:** number of individuals analysed, numerals only.  
+- **Geographical area:** derive the most precise location in this order → City (+ Country) ▸ Region/State (+ Country) ▸ Country ▸ Multinational (< 5 countries, list them) ▸ International (> 5 countries, give region/continent) ▸ Worldwide ▸ "Not specified".  
+- **Population follow-up:** duration of observation.  
+
+Additional instructions for each field to be extracted:  
+- For all fields, use your personal knowledge when appropriate and when you are sure of the answer.  
+    * Example: "Bedside Estimation of Risk From Percutaneous Coronary Interventions: The New Mayo Clinic Risk Scores" ➔ Extract 'USA' as Geographical area because Mayo Clinic is a famous US organisation.  
+- **Registry name.**  
+    1. If possible, extract the full name + acronym. You may use your personal knowledge to complete the name.  
+        - Example: "The French Registry of Patients with Aortic Stenosis" ➔ Extract 'French Registry of Patients with Aortic Stenosis (FRPAS)'.
+    2. If the registry is not named, or the name is not clear enough to identify it, write "Not specified".
+    3. There may be multiple registries mentioned in the text. In this case, extract all of them (if they are clrealy named), separated by commas.
+- **Geographical area.**  
+    * The geographical area is often mentioned in the registry name.  
+        - Example: "The French Registry of Patients with Aortic Stenosis" ➔ Extract 'France'.  
+    * Determine the most precise location using the hierarchy above.  
+- **Outcome measure — extraction checklist**  
+    1. Must be a measurable variable, **not** a disease name, drug, demographic, design, or time-point.  
+    2. Keep only the concept (e.g., "Overall survival", **not** "Overall survival at 3 years").  
+    3. List every distinct endpoint, separated by **commas**, ordered by importance in the study, maximum 7 items.
+    4. Preserve composite labels only if explicitly named by the authors (e.g., "MACE"); otherwise list the components individually.
+    5. Some publications may not be 'traditional' studies and don't track a specific outcome measure to judge effect, safety, or prognosis; but rather mention key risk factors or descriptive statistics or variables, or data quality / process metrics. In this case, it is still acceptable to extract these as the outcome measure, as they are the main focus of the study.
+        - Outcome measure = the result the study tries to explain or improve (e.g., mortality, HbA1c).
+        - Risk factor = an exposure or baseline trait tested as a predictor of that result.
+        - Data-quality / process metric / main focus = A quantitative indicator of how well the registry or study workflow performs, covering data integrity or operational efficiency (e.g., data completeness 98 %, follow-up rate 85 %, median time-to-database-lock 45 days).
+    *Good vs bad extraction micro-examples*  
+        - **Bad:** "Rate of myocardial infarction in patients receiving statins versus placebo over 5 years." → **Good:** "Myocardial infarction"  
+        - **Bad:** "Primary endpoint was a composite of cardiovascular death, non-fatal MI, or stroke." → **Good:** "Cardiovascular death, Myocardial infarction, Stroke"
+- **Medical condition—extraction checklist**:
+    - Highest priority: precise ICD-10 terminology.
+    - Secondary: broader medical categories if precise terms unavailable.
+    - Include procedures, interventions, or treatments only if central to defining the population.
+• Symptoms only when explicitly defining the cohort.
+• Exclude complications unless explicitly studied.
+• Exclude incidental mentions or conditions unrelated to primary criteria.
+Output format of your answer:  
+{
+    "Registry name": STRING,
+    "Intervention": STRING,
+    "Population description": STRING,
+    "Comparator": STRING,
+    "Outcome measure": STRING,
+    "Medical condition": STRING,
+    "Population sex": STRING,
+    "Population age group": STRING,
+    "Design model": STRING,
+    "Population size": STRING,
+    "Geographical area": STRING,
+    "Population follow-up": STRING,
+    "Risk factors / Descriptive statistics": STRING,
+    "Data quality / Process metrics": STRING
+}
+Do not include any other text, explanation, comments or formatting outside of this exact JSON structure.
+
+Constraints:  
+- If information is not available, write only "Not specified".  
+- Only the seven allowed design-model classes above.  
+- When asserting inclusion criteria, answer strictly "Yes" or "No".  
+- Be synthetic; do **not** add anything beyond the JSON specified.
+
+5 examples of answer:  
+{
+    "Registry name": "DAPTS ACE-registry",
+    "Population description": "Patients with cerebral aneurysm who underwent stent-assisted coil embolization (SACE)",
+    "Intervention": "Dual antiplatelet therapy (DAPT)",
+    "Comparator": "Long-term DAPT (> 6 months) vs short-term DAPT (≤ 6 months)",
+    "Outcome measure": "Ischemic stroke, Hemorrhagic events",
+    "Medical condition": "Cerebral aneurysm",
+    "Population sex": "Not specified",
+    "Population age group": "Not specified",
+    "Design model": "Observational studies | Cohort studies",
+    "Population size": "313",
+    "Geographical area": "Japan",
+    "Population follow-up": "15 months",
+    "Risk factors / Descriptive statistics": "Age, Aneurysm size, Hypertension, Smoking, Female sex",
+    "Data quality / Process metrics": "Follow-up rate 93 %, Data completeness 98 %"
+}
+{
+    "Registry name": "Muerte Súbita en Insuficiencia Cardíaca (MUSIC) registry",
+    "Population description": "Ambulatory HF patients with NYHA class II-III and LVEF ≤ 45 %",
+    "Intervention": "Not specified",
+    "Comparator": "Not specified",
+    "Outcome measure": "Sudden cardiac death",
+    "Medical condition": "Chronic heart failure, Heart failure",
+    "Population sex": "Not specified",
+    "Population age group": "Not specified",
+    "Design model": "Nested case-control study | Case-control studies",
+    "Population size": "99000",
+    "Geographical area": "Not specified",
+    "Population follow-up": "3 years",
+    "Risk factors / Descriptive statistics": "Age, Sex, Hypertension, Diabetes mellitus, Beta-blocker use",
+    "Data quality / Process metrics": "Data completeness 95 %, Linkage success 92 %"
+}
+{
+    "Registry name": "Not specified",
+    "Population description": "Patients with in-hospital strokes",
+    "Intervention": "Not specified",
+    "Comparator": "Not specified",
+    "Outcome measure": "Clinical characteristics, Neurological care, Mortality",
+    "Medical condition": "Stroke",
+    "Population sex": "Male, Female",
+    "Population age group": "Not specified",
+    "Design model": "Prospective registry study | Cohort studies",
+    "Population size": "Not specified",
+    "Geographical area": "Not specified",
+    "Population follow-up": "Not specified",
+    "Risk factors / Descriptive statistics": "Atrial fibrillation, Hypertension, Age, Sex, Diabetes mellitus",
+    "Data quality / Process metrics": "Follow-up rate 88 %, Query turnaround 48 h"
+}
+
+Text_to_analyze:

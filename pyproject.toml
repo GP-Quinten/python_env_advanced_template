@@ -1,0 +1,37 @@
+[tool.poetry]
+name = "root_project_template"
+version = "0.1.0"
+description = ""
+authors = [
+    "Boris Kopin <b.kopin@quinten-france.com>",
+]
+readme = "README.md"
+packages = [
+    { include = "more_europa", from = "src" },
+]
+
+[[tool.poetry.source]]
+name = "pypi_product"
+url = "https://pypi.quinten.cloud/repository/pypi_product/simple/"
+priority = "supplemental"
+
+[tool.poetry.dependencies]
+python = ">=3.11,<3.14"
+pandas = "^2.2.3"
+tqdm = "^4.67.1"
+openpyxl = "^3.1.5"
+python-dotenv = "^1.0.1"
+dvc = "^3.59.0"
+matplotlib = "^3.10.0"
+weaviate-client = "^4.11.0"
+snakemake = "^8.28.0"
+dvc-s3 = "^3.2.0"
+pytest = "^8.3.5"
+pytest-asyncio = "^1.0.0"
+ipykernel = "^6.29.5"
+llm-backends = { version = "0.7.0", source = "pypi_product" }
+boto3 = ">=1.40.15,<1.40.19"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

@@ -1,0 +1,28 @@
+services:
+  weaviate:
+    image: cr.weaviate.io/semitechnologies/weaviate:1.32.7
+    container_name: weaviate-local-exp
+    command:
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "8080"
+      - --scheme
+      - http
+    ports:
+      - "8889:8080"   # only HTTP now
+      - "50059:50051"   # gRPC for Python client
+    volumes:
+      - weaviate_data:/var/lib/weaviate
+    restart: unless-stopped
+    environment:
+      QUERY_DEFAULTS_LIMIT: 25
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: "true"
+      PERSISTENCE_DATA_PATH: "/var/lib/weaviate"
+      CLUSTER_HOSTNAME: "node1"
+      ENABLE_API_BASED_MODULES: "true"
+      ENABLE_MODULES: 'text2vec-mistral'
+      DEFAULT_VECTORIZER_MODULE: "text2vec-mistral"
+
+volumes:
+  weaviate_data:

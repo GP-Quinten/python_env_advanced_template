@@ -1,0 +1,5 @@
+outs:
+- md5: 3f8dcb68d0b57470ad97b4b05d33c2d9
+  size: 59731741
+  hash: md5
+  path: Mistral_embeddings_sample.parquet

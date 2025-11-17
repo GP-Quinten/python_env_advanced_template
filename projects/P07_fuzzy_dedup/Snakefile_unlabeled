@@ -1,0 +1,406 @@
+# candidate_pairs.parquet columns:
+#   - pair_hash_id: unique hash for the unordered pair
+#   - left_name, right_name: registry names for each object in the pair
+#   - left_acronym, right_acronym: acronyms for each object
+#   - left_object_id, right_object_id: object IDs for each side of the pair
+
+# Bucket unlabeled registry dataset into candidate pairs using LSH
+rule R20_bucket_unlabeled_dataset:
+    input:
+        script="src/scripts/S20_bucket_unlabeled_dataset.py",
+        dataset_json="data/R01_load_registry_dataset/registry_dataset.json",
+        best_params_json="etc/bucketing_best_params.json"
+    params:
+        output_dir="data/R20_bucket_unlabeled_dataset"
+    output:
+        "data/R20_bucket_unlabeled_dataset/candidate_pairs.parquet"
+    shell:
+        r"""
+        python {input.script} \
+          --dataset_json {input.dataset_json} \
+          --output_dir {params.output_dir} \
+          --best_params_json {input.best_params_json}
+        """
+
+
+# Featurize unlabeled candidate pairs using ONLY the pipeline's preprocessing
+rule R21_featurise_unlabeled:
+    input:
+        script="src/scripts/S21_featurise_unlabeled.py",
+        pipeline="data/R12_prod_pipeline/inference_pipeline.joblib",
+        pairs_parquet="data/R20_bucket_unlabeled_dataset/candidate_pairs.parquet",
+        preloaded_embeddings="data/R01_preload_embeddings__annotated_ds/embeddings.parquet"
+    params:
+        output_dir="data/R21_featurise_unlabeled",
+        batch_size=10000,          # transform in chunks to control memory
+        sample_rows=100000,         # rows used for plotting/statistics
+        max_plot_features=48,       # cap number of features visualized
+        seed=42,
+        n_batches=-1                # NEW: process all batches by default
+    output:
+        "data/R21_featurise_unlabeled/feature_names.json",
+        "data/R21_featurise_unlabeled/row_index.csv.gz",
+        "data/R21_featurise_unlabeled/features_sample.parquet",
+        "data/R21_featurise_unlabeled/feature_distributions.png",
+        "data/R21_featurise_unlabeled/summary.json"
+    shell:
+        """
+        python {input.script} \
+          --pipeline {input.pipeline} \
+          --pairs_parquet {input.pairs_parquet} \
+          --preloaded_embeddings {input.preloaded_embeddings} \
+          --output_dir {params.output_dir} \
+          --batch_size {params.batch_size} \
+          --sample_rows {params.sample_rows} \
+          --max_plot_features {params.max_plot_features} \
+          --seed {params.seed} \
+          --n_batches {params.n_batches}
+        """
+
+# Inference on unlabeled features (use only 'model' step with predict_proba)
+rule R22_inference_unlabeled:
+    input:
+        script="src/scripts/S22_inference_unlabeled.py",
+        pipeline="data/R12_prod_pipeline/inference_pipeline.joblib",
+        summary="data/R21_featurise_unlabeled/summary.json",
+        row_index="data/R21_featurise_unlabeled/row_index.csv.gz",
+        pairs_parquet="data/R20_bucket_unlabeled_dataset/candidate_pairs.parquet"
+    params:
+        features_dir="data/R21_featurise_unlabeled/",
+        output_dir="data/R22_inference_unlabeled",
+        sample_rows=200000,   # total rows to sample for dist plot & inspection
+        seed=42
+    output:
+        manifest="data/R22_inference_unlabeled/manifest.json",
+        sample="data/R22_inference_unlabeled/prediction_samples.parquet",
+        hist_png="data/R22_inference_unlabeled/prediction_distribution.png"
+    shell:
+        r"""
+        python {input.script} \
+          --pipeline {input.pipeline} \
+          --features_dir {params.features_dir} \
+          --summary_json {input.summary} \
+          --row_index_csv {input.row_index} \
+          --candidate_pairs_parquet {input.pairs_parquet} \
+          --output_dir {params.output_dir} \
+          --sample_rows {params.sample_rows} \
+          --seed {params.seed}
+        """
+
+
+# Cluster unlabeled objects from predictions (Union-Find over accepted edges)
+rule R23_cluster_unlabeled:
+    input:
+        script="src/scripts/S23_cluster_unlabeled.py",
+        manifest="data/R22_inference_unlabeled/manifest.json",
+        pairs_parquet="data/R20_bucket_unlabeled_dataset/candidate_pairs.parquet",
+        registry="data/R01_load_registry_dataset/registry_dataset.json"
+    params:
+        output_dir="data/R23_cluster_unlabeled",
+        threshold=0.7237466351536396,
+        cluster_prefix="C",
+        pred_column="proba",
+        n_batch=-1
+    output:
+        summary="data/R23_cluster_unlabeled/summary.json",
+        candidate_pairs="data/R23_cluster_unlabeled/candidate_pairs.parquet",
+        candidate_pairs_sample="data/R23_cluster_unlabeled/candidate_pairs_sample.json",
+        object_clusters_json="data/R23_cluster_unlabeled/object_clusters.json"
+    shell:
+        r"""
+        python {input.script} \
+          --manifest_json {input.manifest} \
+          --pairs_parquet {input.pairs_parquet} \
+          --registry_json {input.registry} \
+          --output_dir {params.output_dir} \
+          --threshold {params.threshold} \
+          --cluster_prefix {params.cluster_prefix} \
+          --pred_column {params.pred_column} \
+          --n_batch {params.n_batch}
+        """
+
+
+# R24 is evaluation of clustering results on the unlabeled dataset
+rule R24_eval_clustering:
+    input:
+        script="src/scripts/S24_eval_clustering.py",
+        clusters_json="data/R23_cluster_unlabeled/object_clusters.json",
+        # clusters_json="data/other/object_clusters_method_1.json",  # using precomputed clusters from method 1
+        test_data="data/R10_prepare_dataset/test_data.json",
+        test_indices="data/R10_prepare_dataset/test_indices.npy"
+    params:
+        output_dir="data/R24_eval_clustering",
+        cluster_prefix="C",
+        pred_column="proba",
+        seed=42
+    output:
+        # only predictions_with_labels.csv is exposed for downstream rules
+        predictions_with_labels="data/R24_eval_clustering/predictions_with_labels.csv"
+    shell:
+        r"""
+        python {input.script} \
+          --clusters_json {input.clusters_json} \
+          --test_data {input.test_data} \
+          --test_indices {input.test_indices} \
+          --output_dir {params.output_dir} \
+          --cluster_prefix {params.cluster_prefix} \
+          --pred_column {params.pred_column} \
+          --seed {params.seed}
+        """
+
+
+# Bucket EMA registries to create candidate pairs with existing registry dataset
+rule R25_bucket_ema_registries:
+    input:
+        script="src/scripts/S25_bucket_ema_registries.py",
+        ema_json="../../datasets/008_raw_registry_names_data_for_model_dedup/ema_registries_data/ema_registries.json",
+        registry_json="data/R01_load_registry_dataset/registry_dataset.json",
+        best_params_json="etc/bucketing_best_params.json"
+    params:
+        output_dir="data/R25_bucket_ema_registries"
+    output:
+        ema_pairs="data/R25_bucket_ema_registries/ema_candidate_pairs.parquet",
+        ema_no_bucket="data/R25_bucket_ema_registries/ema_no_bucket.json",
+        metadata="data/R25_bucket_ema_registries/metadata.json"
+    shell:
+        r"""
+        python {input.script} \
+          --ema_json {input.ema_json} \
+          --registry_json {input.registry_json} \
+          --best_params_json {input.best_params_json} \
+          --output_dir {params.output_dir}
+        """
+
+# Featurize EMA registry pairs using feature pipeline
+rule R26_featurize_ema_pairs:
+    input:
+        script="src/scripts/S21_featurise_unlabeled.py",
+        pipeline="data/R12_prod_pipeline/inference_pipeline.joblib",
+        pairs_parquet="data/R25_bucket_ema_registries/ema_candidate_pairs.parquet",
+        metadata="data/R25_bucket_ema_registries/metadata.json",
+        preloaded_embeddings="data/R01_preload_embeddings__annotated_ds/embeddings.parquet",
+        new_preloaded_embeddings="data/R01_preload_embeddings__annotated_ds/ema_embeddings.parquet"
+    params:
+        output_dir="data/R26_featurize_ema_pairs",
+        batch_size=10000,          # transform in chunks to control memory
+        sample_rows=100000,        # rows used for plotting/statistics
+        max_plot_features=48,      # cap number of features visualized
+        seed=42,
+        n_batches=-1               # process all batches
+    output:
+        feature_names="data/R26_featurize_ema_pairs/feature_names.json",
+        row_index="data/R26_featurize_ema_pairs/row_index.csv.gz",
+        features_sample="data/R26_featurize_ema_pairs/features_sample.parquet",
+        feature_distributions="data/R26_featurize_ema_pairs/feature_distributions.png",
+        summary="data/R26_featurize_ema_pairs/summary.json"
+    shell:
+        """
+        echo "[INFO] Starting to featurize EMA registry pairs..."
+        # Display count of pairs to be featurized
+        echo "[INFO] Number of pairs to featurize: $(python -c "import json; print(json.load(open('{input.metadata}'))['n_pairs'])")"
+        
+        python {input.script} \
+          --pipeline {input.pipeline} \
+          --pairs_parquet {input.pairs_parquet} \
+          --preloaded_embeddings {input.preloaded_embeddings} \
+          --new_preloaded_embeddings {input.new_preloaded_embeddings} \
+          --output_dir {params.output_dir} \
+          --batch_size {params.batch_size} \
+          --sample_rows {params.sample_rows} \
+          --max_plot_features {params.max_plot_features} \
+          --seed {params.seed} \
+          --n_batches {params.n_batches}
+        """
+
+# Assign EMA registries to clusters based on similarity
+rule R27_assign_ema_clusters:
+    input:
+        script="src/scripts/S27_assign_ema_clusters.py",
+        pipeline="data/R12_prod_pipeline/inference_pipeline.joblib",
+        summary="data/R26_featurize_ema_pairs/summary.json",
+        row_index="data/R26_featurize_ema_pairs/row_index.csv.gz",
+        ema_pairs="data/R25_bucket_ema_registries/ema_candidate_pairs.parquet",
+        clusters_json="data/R23_cluster_unlabeled/object_clusters.json"
+        # clusters_json="data/other/object_clusters_method_1.json"  # using precomputed clusters from method 1
+    params:
+        features_dir="data/R26_featurize_ema_pairs",
+        output_dir="data/R27_assign_ema_clusters",
+        threshold=0.90,            # similarity threshold for cluster assignment
+        seed=42
+    output:
+        ema_clusters="data/R27_assign_ema_clusters/ema_clusters.json",
+        ema_closest_matches="data/R27_assign_ema_clusters/ema_closest_matches.json",  # renamed & new structure
+        statistics="data/R27_assign_ema_clusters/statistics.json",
+        report="data/R27_assign_ema_clusters/report.md",
+        similarity_dist="data/R27_assign_ema_clusters/similarity_distribution.png"
+    shell:
+        r"""
+        python {input.script} \
+          --pipeline {input.pipeline} \
+          --features_dir {params.features_dir} \
+          --summary_json {input.summary} \
+          --row_index_csv {input.row_index} \
+          --ema_pairs_parquet {input.ema_pairs} \
+          --clusters_json {input.clusters_json} \
+          --output_dir {params.output_dir} \
+          --threshold {params.threshold} \
+          --seed {params.seed}
+        """
+
+# Evaluate the quality of the aliases of the EMA registries
+rule R28_evaluate_ema_aliases:
+    input:
+        script="src/scripts/S28_evaluate_ema_aliases.py",
+        ema_clusters="data/R27_assign_ema_clusters/ema_clusters.json",
+        # clusters_json="data/R23_cluster_unlabeled/object_clusters.json",
+        clusters_json="data/other/object_clusters_method_1.json",  # using precomputed clusters from method 1
+        prompt_file='etc/prompts/prompt_compare_registry_names_v3.txt',
+        # model_config='etc/configs/gpt4_1_openai_config.json',  # adjust if needed
+        model_config='etc/configs/medium_mistral_config.json',  # adjust if needed
+    params:
+        output_dir="data/R28_evaluate_ema_aliases",
+        max_sample_size=-1  # -1 to evaluate all pairs, or set to e.g. 100 for quick test
+    output:
+        ema_aliases_assessment_xslx="data/R28_evaluate_ema_aliases/ema_aliases_assessment.xlsx", # table of all assessments
+        report_md="data/R28_evaluate_ema_aliases/report.md"# contains nulber of resgitries assigned to a cluster / total ema registries, Total evaluated pairs: 521, Same: XX (XX%), Different: XX (XX%), tbale of quality of aliases by cluster size (in bins)
+    shell:
+        r"""
+        python {input.script} \
+            --ema_clusters {input.ema_clusters} \
+            --clusters_json {input.clusters_json} \
+            --prompt_file {input.prompt_file} \
+            --model_config {input.model_config} \
+            --output_dir {params.output_dir} \
+            --max_sample_size {params.max_sample_size}
+            """
+
+# rule R29_assign_final_registries_info:
+    
+
+# Featurize clustered candidate pairs for inference
+rule R31_featurise_clustered_pairs:
+    input:
+        script="src/scripts/S21_featurise_unlabeled.py",
+        pipeline="data/R12_prod_pipeline/inference_pipeline.joblib",
+        pairs_parquet="data/R23_cluster_unlabeled/candidate_pairs.parquet"
+    params:
+        output_dir="data/R31_featurise_clustered_pairs",
+        batch_size=10000,
+        sample_rows=100000,
+        max_plot_features=48,
+        seed=42,
+        n_batches=-1
+    output:
+        feat_names="data/R31_featurise_clustered_pairs/feature_names.json",
+        row_index="data/R31_featurise_clustered_pairs/row_index.csv.gz",
+        features_sample="data/R31_featurise_clustered_pairs/features_sample.parquet",
+        feature_distributions="data/R31_featurise_clustered_pairs/feature_distributions.png",
+        summary="data/R31_featurise_clustered_pairs/summary.json"
+    shell:
+        """
+        python {input.script} \
+          --pipeline {input.pipeline} \
+          --pairs_parquet {input.pairs_parquet} \
+          --output_dir {params.output_dir} \
+          --batch_size {params.batch_size} \
+          --sample_rows {params.sample_rows} \
+          --max_plot_features {params.max_plot_features} \
+          --seed {params.seed} \
+          --n_batches {params.n_batches}
+        """
+
+# Inference on clustered pairs
+rule R31_inference_clustered_pairs:
+    input:
+        script="src/scripts/S22_inference_unlabeled.py",
+        pipeline="data/R12_prod_pipeline/inference_pipeline.joblib",
+        summary="data/R31_featurise_clustered_pairs/summary.json",
+        row_index="data/R31_featurise_clustered_pairs/row_index.csv.gz",
+        pairs_parquet="data/R23_cluster_unlabeled/candidate_pairs.parquet"
+    params:
+        features_dir="data/R31_featurise_clustered_pairs",
+        output_dir="data/R31_inference_clustered_pairs",
+        sample_rows=200000,
+        seed=42
+    output:
+        manifest="data/R31_inference_clustered_pairs/manifest.json",
+        sample="data/R31_inference_clustered_pairs/prediction_samples.parquet",
+        hist_png="data/R31_inference_clustered_pairs/prediction_distribution.png"
+    shell:
+        r"""
+        python {input.script} \
+          --pipeline {input.pipeline} \
+          --features_dir {params.features_dir} \
+          --summary_json {input.summary} \
+          --row_index_csv {input.row_index} \
+          --output_dir {params.output_dir} \
+          --sample_rows {params.sample_rows} \
+          --candidate_pairs_parquet {input.pairs_parquet} \
+          --seed {params.seed}
+        """
+
+
+rule S23_soft_clustering:
+    input:
+        script="src/scripts/S23_soft_clustering.py",
+        manifest="data/R22_inference_unlabeled/manifest.json",
+        pairs_parquet="data/R20_bucket_unlabeled_dataset/candidate_pairs.parquet",
+        registry="data/R01_load_registry_dataset/registry_dataset.json"
+    params:
+        output_dir="data/R23_soft_clustering",
+        threshold=0.9,            # accept edge if proba >= threshold
+        cluster_prefix="C",        # prefix for cluster IDs
+        pred_column="proba",       # column name from R22 predictions
+        ilp_max_nodes=60,          # max component size for ILP solver
+        ilp_time_limit=0           # time limit in seconds (0 = unlimited)
+    output:
+        clusters="data/R23_soft_clustering/object_clusters.json",
+        summary="data/R23_soft_clustering/summary.json",
+        report="data/R23_soft_clustering/report.md"
+    shell:
+        r"""
+        python {input.script} \
+          --manifest_json {input.manifest} \
+          --pairs_parquet {input.pairs_parquet} \
+          --registry_json {input.registry} \
+          --output_dir {params.output_dir} \
+          --threshold {params.threshold} \
+          --cluster_prefix {params.cluster_prefix} \
+          --pred_column {params.pred_column} \
+          --ilp_max_nodes {params.ilp_max_nodes} \
+          --ilp_time_limit {params.ilp_time_limit} \
+          --n_batch -1
+        """
+
+
+rule R32_soft_clustering:
+    input:
+        script="src/scripts/S23_soft_clustering.py",
+        manifest="data/R31_inference_clustered_pairs/manifest.json",
+        pairs_parquet="data/R23_cluster_unlabeled/candidate_pairs.parquet",
+        registry="data/R01_load_registry_dataset/registry_dataset.json"
+    params:
+        output_dir="data/R32_soft_clustering",
+        threshold=0.9,
+        cluster_prefix="C",
+        pred_column="proba",
+        ilp_max_nodes=60,
+        ilp_time_limit=0
+    output:
+        clusters="data/R32_soft_clustering/object_clusters.json",
+        summary="data/R32_soft_clustering/summary.json",
+        report="data/R32_soft_clustering/report.md"
+    shell:
+        r"""
+        python {input.script} \
+          --manifest_json {input.manifest} \
+          --pairs_parquet {input.pairs_parquet} \
+          --registry_json {input.registry} \
+          --output_dir {params.output_dir} \
+          --threshold {params.threshold} \
+          --cluster_prefix {params.cluster_prefix} \
+          --pred_column {params.pred_column} \
+          --ilp_max_nodes {params.ilp_max_nodes} \
+          --ilp_time_limit {params.ilp_time_limit} \
+          --n_batch -1
+        """

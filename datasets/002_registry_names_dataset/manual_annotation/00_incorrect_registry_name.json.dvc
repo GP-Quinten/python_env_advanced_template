@@ -1,0 +1,5 @@
+outs:
+- md5: 5ccaf33ef3e1799a31d6671e2f0f6ce7
+  size: 165940
+  hash: md5
+  path: 00_incorrect_registry_name.json

@@ -1,0 +1,36 @@
+Context:
+Patient registries are structured, systematic databases explicitly designed to collect standardized, longitudinal patient-level data from defined populations characterized by a common disease, condition, exposure, or treatment. Registries support observational research, epidemiological monitoring, clinical outcomes evaluation, trend analyses, data-quality assessment, and comparative studies. They typically feature structured, ongoing data collection following specific protocols, enabling robust real-world evidence generation.
+
+Classify publications clearly and explicitly as follows:
+
+**Registry related: yes** if the study explicitly describes or uses:
+- Patient registry data to perform epidemiological, survival, outcomes, or descriptive analyses.
+- A patient registry explicitly named, characterized, or detailed in methods.
+- Evaluation of registry data quality, completeness, or validity.
+- Comparative analyses explicitly involving multiple patient registries.
+- Registry data linked or integrated with other data sources (clinical trials, administrative claims, electronic health records, genetic databases, biobanks).
+- Registry-based clinical trials or interventional studies embedded within registry infrastructure (clearly stated).
+
+**Registry related: no** for studies explicitly described as:
+- Pure randomized clinical trials without explicit mention of registry-based design or use of registry data.
+- General longitudinal or observational cohort studies that do not explicitly involve data from structured patient registries.
+- Studies exclusively utilizing administrative databases such as hospitalization records, death certificates (cause-of-death registries), pharmacy/prescription databases, or claims datasets, without reference to structured patient registry systems.
+- Studies using retrospective audits or cohorts derived solely from hospital or institutional records without standardized registry-based data collection procedures.
+- Studies using assessment tools, questionnaires, or clinical batteries developed by registries (e.g., neuropsychological tests from CERAD) without explicitly analyzing actual registry-collected patient data.
+- Clinician or expert opinion surveys that discuss or recommend establishment of registries without actual use or analysis of existing patient registry datasets.
+- Publications that merely recommend establishing registries or discuss the potential value of registries without actual registry data use.
+- Publications that briefly reference a registry in the background or discussion section without conducting explicit analyses based on data derived from such a registry.
+
+Careful consideration of tricky edge cases encountered previously:
+- Mentioning a registry name or acronym (e.g., CERAD) does not automatically imply registry-related classification if only assessment tools or clinical batteries from such registry are used without analyzing patient-level data from the registry.
+- Linkage to administrative registries (mortality or hospitalization records) is not sufficient to classify as registry-related unless the data originates from a structured patient registry explicitly defined as such.
+- Studies recommending the establishment or enhancement of registries but without actual analysis of existing registry data are not registry-related.
+- Surveys or audits derived from clinical records or clinician opinions without explicit use of registry-based patient-level data should be classified as not registry-related.
+
+Given the text below ("Text_to_analyze", title and abstract combined), classify clearly and explicitly following this JSON format without additional explanations or justifications:
+
+{
+    "Registry related": "yes" or "no"
+}
+
+Text_to_analyze:

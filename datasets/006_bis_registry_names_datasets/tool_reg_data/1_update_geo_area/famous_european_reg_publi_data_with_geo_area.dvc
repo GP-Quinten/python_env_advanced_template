@@ -1,0 +1,6 @@
+outs:
+- md5: e0fb3755a02820e3be1bfae4f0dfe5ce.dir
+  size: 9572984
+  nfiles: 8
+  hash: md5
+  path: famous_european_reg_publi_data_with_geo_area

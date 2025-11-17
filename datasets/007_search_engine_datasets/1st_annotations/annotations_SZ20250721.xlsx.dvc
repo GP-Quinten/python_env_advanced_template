@@ -1,0 +1,5 @@
+outs:
+- md5: d63809bb1b1fa94e1b5976237a1afdff
+  size: 40640
+  hash: md5
+  path: annotations_SZ20250721.xlsx

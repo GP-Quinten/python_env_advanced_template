@@ -1,0 +1,5 @@
+outs:
+- md5: 67de8eca547f4d763d19fe50ecd2c490
+  size: 8781360
+  hash: md5
+  path: object_clusters_method_2.json

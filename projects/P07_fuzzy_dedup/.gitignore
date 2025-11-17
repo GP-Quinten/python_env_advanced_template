@@ -1,0 +1,6 @@
+data/
+# hide notebooks except the file assess_ema_aliases_quality.ipynb
+notebooks/
+!notebooks/assess_ema_aliases_quality.ipynb
+
+

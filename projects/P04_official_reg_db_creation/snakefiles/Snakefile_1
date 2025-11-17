@@ -1,0 +1,158 @@
+FIELDS_LIST = [
+    # "registry_name",
+    # "geographical_area",
+    # "medical_condition",
+    # "outcome_measure",
+    "population_description",
+    "intervention",
+    "comparator",
+]
+
+MODEL = "small_mistral"
+
+rule all:
+    input:
+        # # R01
+        # "data/from_scripts/SW01/R01_load_publis_in_batches/raw_publications/1.jsonl",
+        # # R02
+        # "data/from_scripts/SW01/R02_classify_publis_registry_related/registry_related_publis/1.jsonl",
+        # # R03
+        # "data/from_scripts/SW01/R03_regroup_registry_related_publis_in_batches/1.jsonl",
+        # # R04
+        # "data/from_scripts/SW01/R04_extract_registry_name/registries_to_publis/1.jsonl",
+        # R05
+        "data/from_scripts/SW01/R05_update_medical_condition/publi_data/1.jsonl",
+
+
+
+# -------------------------------------------------------------------------- ######
+### --- Workflow 1 --- ###
+
+# Rule R01 loads publications in batches from the official registry database.
+rule R01_load_publis_in_batches:
+    input:
+        script="src/scripts/SW01/S01_load_publis_in_batches.py",
+    params:
+        collection="Publication_v2",
+    output:
+        output_jsonl_template="data/from_scripts/SW01/R01_load_publis_in_batches/raw_publications/1.jsonl",
+    log:
+        "logs/SW01/R01_load_publis_in_batches.log",
+    shell:
+        """
+        PYTHONPATH=$(pwd) python {input.script} \\
+            --collection {params.collection} \\
+            --output_jsonl_template {output.output_jsonl_template} \\
+            2>&1 | tee {log}
+        """
+
+# Rule R02 classify publications as registry_related yes or no
+rule R02_classify_publis_registry_related:
+    input:
+        script="src/scripts/SW01/S02_classify_publis_registry_related.py",
+        input_jsonl_template="data/from_scripts/SW01/R01_load_publis_in_batches/raw_publications/1.jsonl",
+        prompt_txt = "etc/prompts/extraction/prompt_registry_related.txt",
+        model_config = f"etc/configs/{MODEL}_config.json",
+    output:
+        output_raw_inferences_template="data/from_scripts/SW01/R02_classify_publis_registry_related/raw_inferences/1.jsonl",
+        output_jsonl_template="data/from_scripts/SW01/R02_classify_publis_registry_related/registry_related_publis/1.jsonl",
+    params:
+        model=MODEL,
+    log:
+        "logs/SW01/R02_classify_publis_registry_related.log",
+    shell:
+        """
+        PYTHONPATH=$(pwd) python -u {input.script} \\
+            --input_jsonl_template {input.input_jsonl_template} \\
+            --output_raw_inferences_template {output.output_raw_inferences_template} \\
+            --output_jsonl_template {output.output_jsonl_template} \\
+            --prompt_txt {input.prompt_txt} \\
+            --model_config {input.model_config} \\
+            --model {params.model} \\
+            2>&1 | tee {log}
+        """
+
+
+# Rule R03 regroups registry-related publications and makes and saves new batches
+rule R03_regroup_registry_related_publis_in_batches:
+    input:
+        script="src/scripts/SW01/S03_regroup_registry_related_publis_in_batches.py",
+        input_jsonl_template="data/from_scripts/SW01/R02_classify_publis_registry_related/registry_related_publis/1.jsonl",
+        # input_jsonl_template="data/SW01/R02_classify_publis_registry_related/registry_related_publis/first_40/1.jsonl",
+    output:
+        output_jsonl_template="data/from_scripts/SW01/R03_regroup_registry_related_publis_in_batches/1.jsonl",
+    params:
+        batch_limit=-1,  # Adjust as needed. First batches of registry_related publis should be regrouped to create new batches.
+    log:
+        "logs/SW01/R03_regroup_registry_related_publis_in_batches.log",
+    shell:
+        """
+        PYTHONPATH=$(pwd) python -u {input.script} \\
+            --input_jsonl_template {input.input_jsonl_template} \\
+            --output_jsonl_template {output.output_jsonl_template} \\
+            --batch_limit {params.batch_limit} \\
+            2>&1 | tee {log}
+        """
+
+# Rule R04 extract registry name for each registry-related publication. Use -1 to process all batches.
+rule R04_extract_registry_name:
+    input:
+        script="src/scripts/SW01/S04_extract_registry_name.py",
+        input_jsonl_template="data/from_scripts/SW01/R03_regroup_registry_related_publis_in_batches/1.jsonl",
+        prompt_txt = "etc/prompts/extraction/prompt_registry_name.txt",
+        model_config = f"etc/configs/{MODEL}_config.json",
+    output:
+        output_raw_inferences_jsonl_template="data/from_scripts/SW01/R04_extract_registry_name/raw_inferences/1.jsonl",
+        output_publis_json_template="data/from_scripts/SW01/R04_extract_registry_name/publis_to_registries/1.jsonl",
+        output_registries_jsonl_template="data/from_scripts/SW01/R04_extract_registry_name/registries_to_publis/1.jsonl",
+    params:
+        model=MODEL,
+        batch_limit=-1,  # Adjust as needed. First new batches should be processed, for testing purposes. Use -1 to process all batches.
+    log:
+        "logs/SW01/R04_extract_registry_name.log",
+    shell:
+        """
+        PYTHONPATH=$(pwd) python -u {input.script} \\
+            --input_jsonl_template {input.input_jsonl_template} \\
+            --output_raw_inferences_jsonl_template {output.output_raw_inferences_jsonl_template} \\
+            --output_publis_json_template {output.output_publis_json_template} \\
+            --output_registries_jsonl_template {output.output_registries_jsonl_template} \\
+            --prompt_txt {input.prompt_txt} \\
+            --model_config {input.model_config} \\
+            --model {params.model} \\
+            --batch_limit {params.batch_limit} \\
+            2>&1 | tee {log}
+        """
+
+rule R05_update_medical_condition:
+    input:
+        script="src/scripts/SW01/S05_update_medical_condition.py",
+        prompt_txt = "etc/prompts/extraction/prompt_medical_condition.txt",
+        model_config = f"etc/configs/{MODEL}_config.json",
+    output:
+        local_output_raw_inferences_jsonl_template="data/from_scripts/SW01/R05_update_medical_condition/raw_inferences/1.jsonl",
+        local_output_publis_jsonl_template="data/from_scripts/SW01/R05_update_medical_condition/publi_data/1.jsonl",
+        local_output_registries_jsonl_template="data/from_scripts/SW01/R05_update_medical_condition/registry_data/1.jsonl",
+    params:
+        input_registry_data_jsonl_template = "registry_data_catalog_experiments/P04_official_reg_db_creation/registries_dataset_version2/v4/registry_dataset_with_publis_metadata/1.jsonl",
+        collection = "Publication_v2",
+        s3_output_publis_dir = "registry_data_catalog_experiments/P04_official_reg_db_creation/datasets_versions/update_medical_condition/publi_data",
+        s3_output_registries_dir = "registry_data_catalog_experiments/P04_official_reg_db_creation/datasets_versions/update_medical_condition/registry_data",
+        batch_limit=-1,  # Adjust as needed. First new batches should be processed, for testing purposes. Use -1 to process all batches.
+    log:
+        "logs/SW01/R05_update_medical_condition.log",
+    shell:
+        """
+        PYTHONPATH=$(pwd) python -u {input.script} \\
+            --input_registry_data_jsonl_template {params.input_registry_data_jsonl_template} \\
+            --local_output_raw_inferences_jsonl_template {output.local_output_raw_inferences_jsonl_template} \\
+            --local_output_publis_jsonl_template {output.local_output_publis_jsonl_template} \\
+            --local_output_registries_jsonl_template {output.local_output_registries_jsonl_template} \\
+            --prompt_txt {input.prompt_txt} \\
+            --model_config {input.model_config} \\
+            --collection {params.collection} \\
+            --s3_output_publis_dir {params.s3_output_publis_dir} \\
+            --s3_output_registries_dir {params.s3_output_registries_dir} \\
+            --batch_limit {params.batch_limit} \\
+            2>&1 | tee {log}
+        """

@@ -1,0 +1,32 @@
+Context:
+Patient registries are dedicated, systematic collections of uniform patient-level data on populations defined by specific diseases, conditions, exposures, or treatments, primarily for observational purposes such as epidemiological analysis, monitoring, or quality assurance.
+
+Classify a study as "Registry related: yes" only if it explicitly involves:
+- Direct description or characterization of a patient registry.
+- Analyses of patient registry data (complete or partial datasets).
+- Evaluation of data quality, accuracy, or completeness of patient registries.
+- Descriptive epidemiology, survival, outcomes, or trend analyses based on patient registry data.
+- Comparative studies explicitly involving two or more patient registries.
+- Linkage or integration of patient registry data with external data sources.
+- Registry-based clinical trials or interventional registry studies.
+
+Classify as "Registry related: no" if the study involves:
+- Pure clinical trials unless explicitly registry-based.
+- General longitudinal cohort studies without explicit registry involvement.
+- Studies relying solely on administrative databases (hospital discharge, mortality registries, claims or pharmacy data) without systematic patient registry infrastructure.
+- Cohorts or retrospective audits drawn only from hospital or clinic records without standardized registry collection.
+- Studies using assessment tools/questionnaires developed by registries (such as CERAD cognitive test battery) but not involving actual registry data analysis.
+- Clinician surveys or opinions recommending establishment of registries without using existing registry data.
+- Publications recommending a registry or merely referencing the existence of registries in discussions/background sections without analysis of registry datasets.
+
+Carefully differentiate between:
+- Patient registries (structured systems with explicit protocols collecting clinical data).
+- Administrative datasets (mortality databases, hospitalization data, insurance claims), which do not constitute patient registries even when linked to studies.
+
+Given the Title+Abstract ("Text_to_analyze"), classify clearly and strictly using JSON format only:
+
+{
+    "Registry related": "yes" or "no"
+}
+
+Text_to_analyze:

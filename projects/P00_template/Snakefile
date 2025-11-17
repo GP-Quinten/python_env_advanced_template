@@ -1,0 +1,26 @@
+rule R01_generate_dataset:
+    input:
+        script="src/scripts/S01_generate_dataset.py"
+    output:
+        directory("data/R01_generate_dataset")
+    params:
+        n_samples=10
+    shell:
+        """
+        python {input.script} \
+            --n_samples {params.n_samples} \
+            --output_dir {output}
+        """
+
+rule R02_clean_dataset:
+    input:
+        script="src/scripts/S02_clean_dataset.py",
+        dataset="data/R01_generate_dataset/dataset.jsonl"
+    output:
+        directory("data/R02_clean_dataset")
+    shell:
+        """
+        python {input.script} \
+            --input_jsonl {input.dataset} \
+            --output_dir {output}
+        """

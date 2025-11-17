@@ -1,0 +1,8 @@
+{
+  "ngram": 4,
+  "num_perm": 128,
+  "bands": 40,
+  "seed": 13,
+  "min_block_size": 2,
+  "max_block_size": 50
+}

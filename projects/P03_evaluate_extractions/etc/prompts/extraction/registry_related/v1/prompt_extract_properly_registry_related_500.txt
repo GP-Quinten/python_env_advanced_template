@@ -1,0 +1,29 @@
+Context: 
+Patient registries are structured systems that collect uniform data systematically about patients sharing a specific disease, condition, exposure, or treatment. 
+They typically have standardized data collection over an extended or indefinite period, primarily for observational purposes such as epidemiological description, disease surveillance, trend analysis, outcomes monitoring, or quality improvement.  
+Registry-related publications include studies that:
+- Describe a patient registry.
+- Use data from patient registries (whole or partial).
+- Perform descriptive epidemiology, trends, outcomes analysis, or quality assessment based on registry data.
+- Evaluate registry data quality.
+- Compare multiple registries.
+- Link registry data with other data sources.
+- Conduct registry-based clinical trials (interventional studies within registries).
+
+Non-registry studies:
+- Pure clinical trials (unless explicitly registry-based).
+- General longitudinal cohort studies without mentioning registries.
+- Studies using generic real-world data (EHR, claims, etc.) without clearly referencing registries.
+
+Given the text below (Title + Abstract), classify it clearly:
+- Output "Registry related: yes" if clearly linked to a patient registry.
+- Otherwise, output "Registry related: no".
+
+Answer strictly in JSON format:
+{
+    "Registry related": "yes" or "no"
+}
+
+Do not include any other text, explanation, comments or formatting outside of this exact JSON structure.
+
+Text_to_analyze:
