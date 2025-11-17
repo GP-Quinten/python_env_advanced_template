@@ -1,8 +1,0 @@
-{
-    "model": "o3",
-    "max_completion_tokens": 2048,
-    "random_seed": 42,
-    "response_format": {
-        "type": "json_object"
-    }
-}

@@ -2,19 +2,25 @@
 name = "p00-template"
 version = "0.1.0"
 description = ""
-authors = ["Boris Kopin <b.kopin@quinten-france.com>"]
+authors = ["Gaëtan Pinon <g.pinon@quinten-health.com>"]
 readme = "README.md"
 packages = [
     { include = "p00_template", from = "src" },
     { include = "scripts", from = "src" }
 ]
 
+[[tool.poetry.source]]
+name = "pypi_product"
+url = "https://pypi.quinten.cloud/repository/pypi_product/simple/"
+priority = "supplemental"
+
 [tool.poetry.dependencies]
 python = "^3.11"
-snakemake = "^8.29.2"
-click = "^8.1.8"
-registry-catalog-data-science = {path = "../..", develop = true}
+root-project-template = {path = "../..", develop = true}
 ipykernel = "^6.29.5"
+scikit-learn = "^1.6.1"
+# plotly = "^6.3.0"
+llm-backends = { version = "0.7.0", source = "pypi_product" }
 
 
 [build-system]

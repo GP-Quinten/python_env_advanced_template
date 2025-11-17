@@ -4,9 +4,6 @@
 .cache
 .env
 
-# Snakemake
-.snakemake
-
 # python
 *.pyc
 __pycache__/

@@ -1,9 +1,0 @@
-# python
-*.pyc
-__pycache__/
-.python-version
-
-.snakemake/
-
-# max os
-.DS_Store
