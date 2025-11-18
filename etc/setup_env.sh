@@ -1,199 +1,346 @@
 #!/usr/bin/env bash
 set -e
 
-# -----------------------------------------------------------------------------
-# setup_env.sh — Environment setup helper (clearer comments for juniors)
-# -----------------------------------------------------------------------------
-# Purpose (simple):
-#   1) Ensure pyenv is installed and a compatible Python 3.11.x exists.
-#   2) Create or reuse a pyenv virtualenv named <project>-env.
-#   3) Activate that virtualenv and ensure Poetry is using it.
-#   4) Configure Poetry PyPI credentials and install dependencies.
-#
-# Quick notes for juniors:
-#   - Run this script from the project root (it writes .python-version).
-#   - Make sure pyenv and Poetry are installed before running this script.
-#   - The script is intentionally explicit so you can see each step clearly.
-# -----------------------------------------------------------------------------
+###############################################################################
+# COLORED OUTPUT (corporate clean theme)
+###############################################################################
+CYAN="\033[96m"
+GREEN="\033[92m"
+YELLOW="\033[93m"
+RED="\033[91m"
+MAGENTA="\033[95m"
+RESET="\033[0m"
 
-# -----------------------------------------------------------------------------
-# Check for pyenv
-# -----------------------------------------------------------------------------
-# Check if pyenv is installed. If not, show an actionable message and exit.
-if ! command -v pyenv >/dev/null; then
-    echo "pyenv is not installed. Please install pyenv first." >&2
-    echo "SOLUTION: Following instructions:" >&2
-    echo "  $ curl https://pyenv.run | bash" >&2
-    exit 1
+print_step()  { echo -e "${CYAN}$1${RESET}"; }
+print_ok()    { echo -e "${GREEN}$1${RESET}"; }
+print_warn()  { echo -e "${YELLOW}$1${RESET}"; }
+print_err()   { echo -e "${RED}$1${RESET}"; }
+print_cmd()   { echo -e "${MAGENTA}$1${RESET}"; }
+
+###############################################################################
+print_step "=============================================================="
+print_step " Quinten Health — Project Environment Setup"
+print_step "=============================================================="
+echo ""
+###############################################################################
+
+
+###############################################################################
+# STEP 1 — Check for pyenv (install automatically if missing)
+###############################################################################
+print_step "[1/10] Checking pyenv installation…"
+
+if ! command -v pyenv >/dev/null 2>&1; then
+    print_warn "pyenv is not installed."
+
+    print_step "Installing pyenv using the official installer…"
+    print_cmd "curl https://pyenv.run | bash"
+
+    curl https://pyenv.run | bash
+
+    print_ok "pyenv installation completed."
+else
+    print_ok "pyenv is installed."
 fi
 
-# -----------------------------------------------------------------------------
-# Initialize pyenv in this shell
-# -----------------------------------------------------------------------------
-# Load pyenv and the virtualenv commands into this shell session.
-# These lines set up shell integration so pyenv and pyenv-virtualenv work here.
-eval "$(pyenv init --path)"
-eval "$(pyenv init -)"
-eval "$(pyenv virtualenv-init -)"
 
-# -----------------------------------------------------------------------------
-# Advise user to update ~/.zshrc for Poetry and pyenv shell integration
-# -----------------------------------------------------------------------------
-echo ""
-echo "IMPORTANT: To ensure Poetry and pyenv work correctly in your shell, please execute the following commands in your terminal:"
-echo ""
-echo "echo '# pyenv shell integration' > ~/.zshrc.local"
-echo "echo 'export PYENV_ROOT=\"\$HOME/.pyenv\"' >> ~/.zshrc.local"
-echo "echo 'export PATH=\"\$PYENV_ROOT/bin:\$PATH\"' >> ~/.zshrc.local"
-echo "echo 'eval \"\$(pyenv init --path)\"' >> ~/.zshrc.local"
-echo "echo 'eval \"\$(pyenv init -)\"' >> ~/.zshrc.local"
-echo "echo 'eval \"\$(pyenv virtualenv-init -)\"' >> ~/.zshrc.local"
-echo "echo '' >> ~/.zshrc.local"
-echo "echo '# Poetry shell integration' >> ~/.zshrc.local"
-echo "echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.zshrc.local"
-echo ""
-echo "echo '' >> ~/.zshrc"
-echo "echo '# Load custom local configuration' >> ~/.zshrc"
-echo "echo 'source ~/.zshrc.local' >> ~/.zshrc"
-echo ""
-echo "This ensures 'pyenv' and 'poetry' commands are available in every new terminal session."
-echo ""
-echo "IMPORTANT!!! After updating ~/.zshrc, restart your terminal or run 'source ~/.zshrc' to apply the changes."
+###############################################################################
+# STEP 2 — Configure shell for pyenv + poetry (Option 3: auto reload)
+###############################################################################
+print_step "[2/10] Checking shell configuration…"
 
-# -----------------------------------------------------------------------------
-# Select Python version
-# -----------------------------------------------------------------------------
-# Desired Python version prefix we want to use for this project.
+ZSHRC="$HOME/.zshrc"
+LOCAL_ZSHRC="$HOME/.zshrc.local"
+
+# If script already reloaded automatically, we skip this section
+if [ -n "$QH_SHELL_RELOADED" ]; then
+    print_ok "Shell already reloaded — proceeding with setup…"
+else
+    print_step "Verifying presence of ~/.zshrc.local…"
+
+    # --- Generate ~/.zshrc.local only once
+    if [ ! -f "$LOCAL_ZSHRC" ]; then
+        print_warn "~/.zshrc.local is missing — creating it…"
+
+        cat > "$LOCAL_ZSHRC" <<EOF
+# Auto-generated local zsh configuration for pyenv + poetry
+export PYENV_ROOT="\$HOME/.pyenv"
+export PATH="\$PYENV_ROOT/bin:\$PATH"
+eval "\$(pyenv init --path)"
+eval "\$(pyenv init -)"
+eval "\$(pyenv virtualenv-init -)"
+
+# poetry integration
+export PATH="\$HOME/.local/bin:\$PATH"
+EOF
+
+        print_ok "~/.zshrc.local created."
+    else
+        print_ok "~/.zshrc.local already exists (kept as-is)."
+    fi
+
+
+    # --- Ensure ~/.zshrc loads ~/.zshrc.local
+    if ! grep -q "source ~/.zshrc.local" "$ZSHRC"; then
+        print_warn "Injecting 'source ~/.zshrc.local' into ~/.zshrc…"
+        {
+            echo ""
+            echo "# Load custom local configuration"
+            echo "source ~/.zshrc.local"
+        } >> "$ZSHRC"
+        print_ok "~/.zshrc updated."
+    else
+        print_ok "~/.zshrc already loads ~/.zshrc.local."
+    fi
+
+
+    # --- Strong warning before automatic reload
+    print_err "IMPORTANT NOTICE:"
+    print_warn "Your shell configuration has been modified to use pyenv and poetry together."
+    print_warn "Your terminal session will now automatically reload to apply these changes."
+    print_warn "This is safe, but will momentarily replace your current shell session."
+    echo ""
+
+    print_step "Reloading shell automatically (exec zsh -l)…"
+    echo ""
+
+    # Mark reload so we continue after restart
+    export QH_SHELL_RELOADED=1
+
+    exec zsh -l -c "QH_SHELL_RELOADED=1 bash $0"
+fi
+
+###############################################################################
+# STEP 3 — Select Python version (dynamic 3.11.x detection + installation)
+###############################################################################
+print_step "[3/10] Selecting Python version…"
+
+# The major/minor version we want for this project.
 PYTHON_VERSION_PREFIX="3.11"
+# Default fallback version to install if none exists
+DEFAULT_PYTHON_VERSION="3.11.9"
 
-# Pick the first installed Python version that starts with the prefix.
-PYTHON_VERSION=$(pyenv versions --bare | grep "^${PYTHON_VERSION_PREFIX}" | head -n 1)
+# Find first installed version starting with 3.11.x
+PYTHON_VERSION=$(pyenv versions --bare | grep "^${PYTHON_VERSION_PREFIX}\." | head -n 1)
+
 if [ -z "$PYTHON_VERSION" ]; then
-    echo "No Python version starting with ${PYTHON_VERSION_PREFIX} is installed in pyenv. Please install it and try again." >&2
-    echo "SOLUTION: execute following command:" >&2
-    echo "  $ pyenv install ${PYTHON_VERSION_PREFIX}" >&2
-    echo "If it fails, ensure you have the necessary build dependencies installed for your OS." >&2
-    echo "https://github.com/pyenv/pyenv/wiki#suggested-build-environment" >&2
-    echo "Contact IT if you need help." >&2
-    exit 1
+    print_warn "No Python version starting with '${PYTHON_VERSION_PREFIX}' found."
+
+    print_step "Installing Python ${DEFAULT_PYTHON_VERSION} via pyenv…"
+    print_cmd "pyenv install ${DEFAULT_PYTHON_VERSION}"
+
+    pyenv install "${DEFAULT_PYTHON_VERSION}"
+
+    PYTHON_VERSION="${DEFAULT_PYTHON_VERSION}"
+
+    print_ok "Python ${PYTHON_VERSION} installed."
+else
+    print_ok "Found Python version: ${PYTHON_VERSION}"
 fi
 
-echo "Using Python version: ${PYTHON_VERSION}"
 
-# -----------------------------------------------------------------------------
-# Create or reuse the project virtualenv
-# -----------------------------------------------------------------------------
-# Name the virtualenv after the project directory to make it obvious.
+###############################################################################
+# STEP 4 — Create or reuse the project virtualenv
+###############################################################################
+print_step "[4/10] Checking project virtual environment…"
+
+# Your original behavior: name environment after project folder
 PROJECT_NAME=$(basename "$PWD")
 ENV_NAME="${PROJECT_NAME}-env"
+
+# Expected path of this environment
 ENV_PATH="$HOME/.pyenv/versions/${PYTHON_VERSION}/envs/${ENV_NAME}"
 
-# Create the virtualenv if it does not already exist.
+# Create virtualenv if missing
 if pyenv virtualenvs --bare | grep -q "^${ENV_NAME}$"; then
-    echo "Virtual environment ${ENV_NAME} already exists."
+    print_ok "Virtual environment '${ENV_NAME}' already exists."
 else
-    echo "Creating virtual environment ${ENV_NAME} using Python ${PYTHON_VERSION}..."
+    print_warn "Virtual environment '${ENV_NAME}' not found."
+    print_step "Creating virtual environment '${ENV_NAME}' using Python ${PYTHON_VERSION}…"
+
+    print_cmd "pyenv virtualenv ${PYTHON_VERSION} ${ENV_NAME}"
     pyenv virtualenv "${PYTHON_VERSION}" "${ENV_NAME}"
+
+    print_ok "Environment '${ENV_NAME}' created."
 fi
 
-# -----------------------------------------------------------------------------
-# Activate virtualenv and set local project version
-# -----------------------------------------------------------------------------
-# Make this directory use the named virtualenv by default (.python-version file).
-pyenv local "${ENV_NAME}"
-echo "Set local pyenv environment: ${ENV_NAME}"
+###############################################################################
+# AUTO-DEACTIVATE ANY PREVIOUS ENVIRONMENT (Option 2)
+###############################################################################
+print_step "Checking if another pyenv environment is active…"
 
-# If the environment is not active in this shell, activate it now.
-CURRENT_ENV=$(pyenv version-name)
-if [ "$CURRENT_ENV" = "$ENV_NAME" ]; then
-    echo "Virtual environment ${ENV_NAME} is already activated."
+ACTIVE_ENV=$(pyenv version-name || echo "system")
+
+if [ "$ACTIVE_ENV" != "system" ] && [ "$ACTIVE_ENV" != "$ENV_NAME" ]; then
+    print_warn "Another environment is currently active: ${ACTIVE_ENV}"
+    print_step "Deactivating it to avoid conflicts…"
+    print_cmd "pyenv deactivate"
+    pyenv deactivate || true
+    print_ok "Previous environment deactivated."
 else
-    echo "Activating virtual environment: ${ENV_NAME}"
+    print_ok "No conflicting environment active."
+fi
+
+###############################################################################
+# STEP 5 — Activate virtualenv and set local project version
+###############################################################################
+print_step "[5/10] Activating environment '${ENV_NAME}'…"
+
+# Make pyenv use this environment for the current project folder
+pyenv local "${ENV_NAME}"
+print_ok "Set local pyenv environment to '${ENV_NAME}'."
+
+# Check if environment is already active
+CURRENT_ENV=$(pyenv version-name)
+
+if [ "$CURRENT_ENV" = "$ENV_NAME" ]; then
+    print_ok "Virtual environment '${ENV_NAME}' is already active in this shell."
+else
+    print_step "Activating virtual environment…"
+    print_cmd "pyenv activate ${ENV_NAME}"
     pyenv activate "${ENV_NAME}"
 fi
 
-# -----------------------------------------------------------------------------
-# Configure Poetry behavior
-# -----------------------------------------------------------------------------
-# Ensure Poetry will not create its own virtual env and instead use the current one.
-if command -v poetry >/dev/null; then
-    echo "Configuring Poetry to not create virtual environments (virtualenvs.create = false)..."
-    poetry config virtualenvs.create false --local
-else
-    echo "Warning: Poetry is not installed; skipping poetry virtualenvs.create configuration."
-    echo "SOLUTION: Please install Poetry first by executing:" >&2
-    echo "  $ curl -sSL https://install.python-poetry.org | python3 -" >&2
-    echo "Then ensure \$HOME/.local/bin is in your PATH. Update your ~/.zshrc as needed. And restart your terminal." >&2
+print_ok "Environment '${ENV_NAME}' is active and ready."
+
+###############################################################################
+# STEP 6 — Configure Poetry behavior
+###############################################################################
+print_step "[6/10] Configuring Poetry behavior…"
+
+# Ensure Poetry is installed
+if ! command -v poetry >/dev/null 2>&1; then
+    print_err "Poetry is not installed."
+    print_warn "Please install Poetry with:"
+    print_cmd "curl -sSL https://install.python-poetry.org | python3 -"
     exit 1
 fi
 
-# -----------------------------------------------------------------------------
-# Validate Poetry environment
-# -----------------------------------------------------------------------------
-# Validate Poetry's environment information so we can compare paths and validity.
-echo "Checking Poetry environment..."
-POETRY_ENV_INFO=$(poetry env info 2>/dev/null)
+print_ok "Poetry is installed."
 
-# Extract the first Path: line (the virtualenv path) and the Valid: flag from Poetry output.
-POETRY_ENV_PATH=$(echo "$POETRY_ENV_INFO" | awk '/Path:/ {print $2; exit}')
+print_step "Configuring Poetry to avoid creating virtual environments…"
+print_cmd "poetry config virtualenvs.create false --local"
+poetry config virtualenvs.create false --local
+print_ok "Poetry configured (virtualenvs.create = false)."
+
+
+###############################################################################
+# STEP 7 — Validate Poetry environment
+###############################################################################
+print_step "[7/10] Validating Poetry environment…"
+
+echo -e "${CYAN}Checking Poetry environment info…${RESET}"
+POETRY_ENV_INFO=$(poetry env info 2>/dev/null || true)
+
+if [ -z "$POETRY_ENV_INFO" ]; then
+    print_err "Failed to retrieve Poetry environment information!"
+    print_warn "This may happen if Poetry cannot detect an active environment."
+    print_warn "SOLUTION: Try closing the terminal fully, reopen it, activate the env, then rerun the script."
+    exit 1
+fi
+
+# Extract venv path ONLY from the Virtualenv section
+POETRY_ENV_PATH=$(echo "$POETRY_ENV_INFO" \
+    | awk '/Virtualenv/ {flag=1} flag && /Path:/ {print $2; exit}')
+
+# Extract validity
 VALID_ENV=$(echo "$POETRY_ENV_INFO" | awk '/Valid:/ {print $2}')
 
-# If Poetry reports the environment is not valid, show details and exit.
-if [[ "$VALID_ENV" != "True" ]]; then
-    echo "Error: Poetry reports that the environment is not valid." >&2
-    echo "$POETRY_ENV_INFO" >&2
-    echo "SOLUTION: please simply rerun this script." >&2
+if [ -z "$POETRY_ENV_PATH" ]; then
+    print_err "Could not extract Poetry virtualenv path from 'poetry env info'."
+    echo "$POETRY_ENV_INFO"
     exit 1
 fi
 
-# If Poetry's reported venv path does not match the expected pyenv path, show details and exit.
-if [[ "$POETRY_ENV_PATH" != "$ENV_PATH" ]]; then
-    echo "Error: Poetry environment path ($POETRY_ENV_PATH) does not match expected path ($ENV_PATH)." >&2
-    echo "$POETRY_ENV_INFO" >&2
+# Guard if fields are empty
+if [ -z "$VALID_ENV" ]; then
+    print_err "Poetry did not provide a 'Valid:' field."
+    echo "$POETRY_ENV_INFO"
     exit 1
 fi
 
-echo "Verified correct Poetry virtual environment: $POETRY_ENV_PATH"
-
-# Check if Poetry is installed (again) and exit if missing.
-if ! command -v poetry >/dev/null; then
-    echo "Poetry is not installed. Please install Poetry first." >&2
+# Validation 1: Poetry must report Valid: True
+if [ "$VALID_ENV" != "True" ]; then
+    print_err "Poetry environment is NOT valid:"
+    echo "$POETRY_ENV_INFO"
+    print_warn "SOLUTION: close terminal, reopen and rerun this script."
     exit 1
 fi
 
-# -----------------------------------------------------------------------------
-# Poetry credentials (setup)
-# -----------------------------------------------------------------------------
-# Configure Poetry PyPI credentials for 'pypi_product' if not already set.
-echo "Checking Poetry PyPI credentials for 'pypi_product'..."
+# Validation 2: Check expected path
+if [ "$POETRY_ENV_PATH" != "$ENV_PATH" ]; then
+    print_err "Poetry environment path mismatch!"
+    print_warn "Poetry reports: $POETRY_ENV_PATH"
+    print_warn "Expected path:  $ENV_PATH"
+    print_err "Poetry is NOT using your pyenv environment."
+    print_warn "SOLUTION: remove incorrect env with:"
+    print_cmd "poetry env remove python"
+    exit 1
+fi
+
+print_ok "Poetry environment is valid and correctly configured."
+
+
+###############################################################################
+# STEP 8 — Poetry credentials (setup)
+###############################################################################
+print_step "[8/10] Checking Poetry PyPI credentials for 'pypi_product'…"
+
 if poetry config --list 2>/dev/null | grep -q 'http-basic.pypi_product'; then
-    echo "Poetry credentials for 'pypi_product' already configured."
+    print_ok "Poetry credentials for 'pypi_product' already configured."
 else
-    # Prompt the user for PyPI username and password and set them in Poetry config.
-    read -p "Enter your PyPI username: " PYPI_USERNAME
-    read -s -p "Enter your PyPI password: " PYPI_PASSWORD
+    print_warn "Credentials for 'pypi_product' are NOT configured."
+    print_step "Setting credentials for private PyPI repository: pypi_product"
+
+    # Prompt the user for PyPI username + password
+    # Username shows, password hidden.
+    echo -ne "${CYAN}Enter your PyPI username: ${RESET}"
+    read PYPI_USERNAME
+
+    echo -ne "${CYAN}Enter your PyPI password: ${RESET}"
+    read -s PYPI_PASSWORD
     echo ""
-    poetry config http-basic.pypi_product "$PYPI_USERNAME" "$PYPI_PASSWORD"
-    echo "✅ Poetry has been configured with credentials for 'pypi_product'."
-fi
-# -----------------------------------------------------------------------------
 
-# -----------------------------------------------------------------------------
-# Install project dependencies with Poetry
-# -----------------------------------------------------------------------------
-# === Poetry install ===
-# Ensure a lockfile exists and refresh it, then install dependencies via Poetry.
+    print_step "Configuring Poetry with provided credentials…"
+    poetry config http-basic.pypi_product "$PYPI_USERNAME" "$PYPI_PASSWORD"
+
+    print_ok "Poetry has been successfully configured with 'pypi_product' credentials."
+fi
+
+###############################################################################
+# STEP 9 — Install project dependencies with Poetry
+###############################################################################
+print_step "[9/10] Installing project dependencies with Poetry…"
+
+# Ensure a lockfile exists or refresh it
 if [ ! -f "poetry.lock" ]; then
-    echo "No poetry.lock found — generating one with 'poetry lock'..."
+    print_warn "No poetry.lock found — generating one with 'poetry lock'…"
+    print_cmd "poetry lock"
     poetry lock
 else
-    echo "Running 'poetry lock' to ensure lockfile is up-to-date..."
+    print_step "Refreshing lockfile with 'poetry lock'…"
+    print_cmd "poetry lock"
     poetry lock
 fi
 
-# Install project dependencies via Poetry.
-echo "Running 'poetry install'..."
+print_step "Installing dependencies using 'poetry install'…"
+print_cmd "poetry install"
 poetry install
-# === End Poetry install ===
 
-echo "Setup complete."
+print_ok "Poetry dependencies installed successfully."
+
+
+###############################################################################
+# STEP 10 — Final success message
+###############################################################################
+print_step "[10/10] Setup Complete!"
+print_ok "Your Python + pyenv + Poetry environment is fully configured."
+print_ok "Virtual environment: ${ENV_NAME}"
+print_ok "Python version: ${PYTHON_VERSION}"
+print_ok "Environment path: ${ENV_PATH}"
+
+echo ""
+print_step "=============================================================="
+print_step " 🎉 Your project environment is READY — Happy coding! 🎉"
+print_step "=============================================================="
+echo ""
