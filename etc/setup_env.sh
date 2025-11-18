@@ -182,6 +182,18 @@ else
 fi
 
 ###############################################################################
+# AUTO-DEACTIVATE CONDA IF ACTIVE
+###############################################################################
+if [[ ! -z "$CONDA_DEFAULT_ENV" ]]; then
+    print_warn "A conda environment is active: $CONDA_DEFAULT_ENV"
+    print_step "Deactivating conda to avoid Poetry/Pyenv conflicts…"
+    print_cmd "conda deactivate"
+    conda deactivate || true
+    print_ok "Conda environment deactivated."
+fi
+
+
+###############################################################################
 # STEP 5 — Activate virtualenv and set local project version
 ###############################################################################
 print_step "[5/10] Activating environment '${ENV_NAME}'…"

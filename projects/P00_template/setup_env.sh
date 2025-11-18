@@ -10,4 +10,4 @@ if [ "$ACTIVE_ENV" != "system" ]; then
 fi
 
 # Now run the shared setup script
-bash ../../etc/setup_env.sh
+source ../../etc/setup_env.sh
