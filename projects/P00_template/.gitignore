@@ -1,2 +1,4 @@
-data/R*
+/poetry.lock
+/poetry.toml
+.python-version
 
